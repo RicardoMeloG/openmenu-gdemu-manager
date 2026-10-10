@@ -19,7 +19,7 @@ def read_contract(root=ROOT):
     required = {"unselected", "checking", "empty", "ready", "readonly", "inaccessible",
                 "security_blocked", "backup_running", "backup_failed", "install_running",
                 "install_failed", "installed"}
-    if contract.get("schema_version") != 1 or set(contract["states"]) != required:
+    if contract.get("schema_version") != 1 or not required.issubset(contract["states"]):
         raise ValueError("Unsupported or incomplete setup design contract")
     if contract["implementation_status"] not in {"pending", "implemented"}:
         raise ValueError("Invalid implementation status")
@@ -49,9 +49,10 @@ def review_status(root, contract, source_digest):
         ids = {check["id"] for check in contract["manual_checks"]}
         if set(record["checks"]) != ids or any(value != "pass" for value in record["checks"].values()):
             return "PENDING", "Manual criteria remain pending or failed."
-        reference = (root / contract["reference"]["local_path"]).resolve()
-        if not reference.is_relative_to(root.resolve()) or hashlib.sha256(reference.read_bytes()).hexdigest() != contract["reference"]["sha256"]:
-            return "PENDING", "Accepted reference is missing or changed."
+        for accepted in [contract['reference'], *contract.get('related_references', [])]:
+            reference = (root / accepted['local_path']).resolve()
+            if not reference.is_relative_to(root.resolve()) or hashlib.sha256(reference.read_bytes()).hexdigest() != accepted['sha256']:
+                return 'PENDING', 'Accepted reference is missing or changed.'
         evidence = record["screenshots"]
         if not evidence:
             return "PENDING", "Screenshot evidence is required."

@@ -476,6 +476,16 @@ class MainWindowV2(MainWindow):
             self.root_path=dialog.selected_path
             self.start_scan()
 
+    def _has_registered_backup(self, diagnostic):
+        from ...services.backup_service import completed_backup_exists
+        return super()._has_registered_backup(diagnostic) or completed_backup_exists(self.settings,diagnostic)
+
+    def open_backup_prompt(self, diagnostic, force=False, allow_skip=True):
+        self.leave_bulk()
+        from .backup import BackupPromptV2
+        dialog=BackupPromptV2(diagnostic,self,force=force,allow_skip=allow_skip)
+        return dialog.exec()==QDialog.DialogCode.Accepted
+
     def open_provider_settings(self):self.leave_bulk();super().open_provider_settings()
     def force_backup_current_sd(self):self.leave_bulk();super().force_backup_current_sd()
     def export_reports(self):self.leave_bulk();super().export_reports()

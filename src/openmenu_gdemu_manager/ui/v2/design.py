@@ -65,6 +65,12 @@ def apply_theme(app, value="light"):
     QLabel[heading=true] {{ font-size: {METRICS['font-title']}px; font-weight: 600; }}
     QLabel[collectionHeading=true] {{ font-size: {METRICS['font-collection-heading']}px; border-left: 3px solid {c['accent']}; padding-left: {METRICS['space-2']}px; }}
     QLabel[title=true] {{ font-size: {METRICS['font-body']}px; font-weight: 600; }}
+    QLineEdit#PreparationPath {{background:transparent;border:none;padding:0;min-height:24px;}}
+    QLineEdit#PreparationPath:focus {{border:1px solid {c['focus']};border-radius:4px;}}
+    QLabel[preparationHeading=true] {{ font-size: {METRICS['font-preparation-heading']}px; font-weight: 700; }}
+    QLabel[preparationTitle=true] {{ font-size: 18px; font-weight: 600; }}
+    QLabel[tone=info] {{ color: {c['info']}; }}
+    QLabel[tone=brand] {{ color: {c['accent']}; }}
     QLabel[tone=success] {{ color: {c['success']}; }}
     QLabel[tone=warning] {{ color: {c['warning']}; }}
     QLabel[tone=danger] {{ color: {c['danger']}; }}
@@ -167,6 +173,12 @@ class Button(QPushButton):
         if callback:
             self.clicked.connect(callback)
         self.refresh_icon()
+
+    def setText(self, text):
+        super().setText(text)
+        if text:
+            self.setAccessibleName(text.replace('&', ''))
+            self.setToolTip(text.replace('&', ''))
 
     def refresh_icon(self):
         c = colors()
@@ -295,8 +307,8 @@ class TextLabel(QLabel):
         return QSize(0,hint.height())
 
 
-def label(text, *, muted=False, title=False, heading=False, wrap=False, tone=None):
-    item = TextLabel(text)
+def label(text, *, muted=False, title=False, heading=False, wrap=False, tone=None, label_type=TextLabel):
+    item = label_type(text)
     item.setProperty("muted", muted)
     item.setProperty("title", title)
     item.setProperty("heading", heading)

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "setup-dreamcast-2026-10-10",
   "screen": "SetupWizardV2",
-  "implementation_status": "pending",
+  "implementation_status": "implemented",
   "reference": {
     "local_path": "local-artifacts/design/setup-direction-2026-10-10.png",
     "sha256": "7b2ed28311f0414102ecb662eb33d9bff96e6500f187311e276f552490b57d30",
@@ -11,7 +11,8 @@
   },
   "scope": {
     "change": [
-      "SD preparation wizard"
+      "SD preparation wizard",
+      "SD backup selection, confirmation, progress and outcomes"
     ],
     "preserve": [
       "compact collection",
@@ -38,12 +39,14 @@
       "decorative illustration"
     ],
     "composites": [
-      "DestinationStrip",
-      "SetupStatusCard",
+      "Header",
+      "PathStrip",
+      "StatusCard",
       "BackupRecommendationCard",
-      "SetupFooter"
+      "footer",
+      "Confirmation"
     ],
-    "controller": "SetupWizardV2 retains original diagnosis/install/backup services; composites present state and emit intents."
+    "controller": "SetupWizardV2 and BackupPromptV2 retain original diagnostic/install/copy services and explicit decisions; preparation.py supplies shared native presentation."
   },
   "states": {
     "unselected": {
@@ -93,6 +96,30 @@
     "installed": {
       "primary": "continue",
       "backup": "conditional"
+    },
+    "backup_choose": {
+      "primary": "create_backup",
+      "backup": "optional_skip_with_confirmation"
+    },
+    "backup_required": {
+      "primary": "create_backup",
+      "backup": "no_skip"
+    },
+    "backup_skip_confirmation": {
+      "primary": "confirm_skip",
+      "backup": "explicit_reminder_scope"
+    },
+    "backup_preparing": {
+      "primary": "none",
+      "backup": "indeterminate_real_preparation"
+    },
+    "backup_success": {
+      "primary": "continue",
+      "backup": "open_folder"
+    },
+    "legacy_upgrade_required": {
+      "primary": "review_backup_and_menu_upgrade",
+      "backup": "conditional"
     }
   },
   "matrix": {
@@ -116,6 +143,10 @@
       [
         900,
         620
+      ],
+      [
+        500,
+        240
       ]
     ],
     "qt_scales": [
@@ -171,5 +202,17 @@
       "criterion": "Editar destino revoca aprobación; instalar requiere confirmación y muestra resultado; errores y reintentos no simulan éxito."
     }
   ],
-  "approval_policy": "Functional PASS does not approve design. Implementation complete, matching source/contract digests, all manual checks passed and an independent named reviewer with hashed screenshots are required. Human acceptance and hardware gates remain separate."
+  "approval_policy": "Functional PASS does not approve design. Implementation complete, matching source/contract digests, all manual checks passed and an independent named reviewer with hashed screenshots are required. Human acceptance and hardware gates remain separate.",
+  "related_references": [
+    {
+      "local_path": "local-artifacts/design/backup-direction-2026-10-10.png",
+      "sha256": "50942398213faee4c505deaeaaa17272cd32070e1025da9c0a78b188a5c8554a",
+      "origin": "Referencia de respaldo aportada por el usuario; conservar sin editar."
+    }
+  ],
+  "screens": [
+    "SetupWizardV2",
+    "BackupPromptV2",
+    "Confirmation"
+  ]
 }

@@ -164,7 +164,6 @@ def test_setup_backup_blocks_route_close_and_primary(app, tmp_path):
 
 def retained_cases(tmp_path):
     diagnostic = diagnose_storage(tmp_path)
-    yield 'backup', backup_prompt.BackupPromptDialog(diagnostic)
     yield 'upgrade', LegacyMenuUpgradeDialog(False)
     yield 'review', ConfirmApplyDialog(tmp_path, 3, 2, 1, slot_moves=4, product_updates=5)
     yield 'providers', ProviderSettingsDialog({})
@@ -264,7 +263,7 @@ def test_all_original_dialog_exports_have_explicit_v2_disposition():
     import inspect
     from openmenu_gdemu_manager.ui import dialogs
     exported = {name for name, item in inspect.getmembers(dialogs, inspect.isclass) if issubclass(item, QDialog)}
-    replaced = {'SetupWizardDialog', 'CandidateDialog', 'CoverPreviewDialog', 'AddGameDialog'}
+    replaced = {'BackupPromptDialog', 'SetupWizardDialog', 'CandidateDialog', 'CoverPreviewDialog', 'AddGameDialog'}
     assert exported == (set(RETAINED_DIALOGS) - {'ProviderConfigDialog'}) | replaced
 
 

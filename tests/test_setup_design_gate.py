@@ -35,6 +35,12 @@ def review(project, contract):
     reference.write_bytes(b"reference fixture")
     contract["reference"]["sha256"] = hashlib.sha256(reference.read_bytes()).hexdigest()
     (project / gate.CONTRACT).write_text(json.dumps(contract), encoding="utf-8")
+    for accepted in contract.get('related_references', []):
+        related = project / accepted['local_path']
+        related.parent.mkdir(parents=True, exist_ok=True)
+        related.write_bytes(b'related reference fixture')
+        accepted['sha256'] = hashlib.sha256(related.read_bytes()).hexdigest()
+    (project / gate.CONTRACT).write_text(json.dumps(contract), encoding='utf-8')
     matrix = contract["matrix"]
     captures = []
     for index, state in enumerate(contract["states"]):
@@ -42,7 +48,7 @@ def review(project, contract):
         dpr = 2.5 if metadata["qt_scales"] == "windows-system" else float(metadata["qt_scales"])
         capture = folder / f"synthetic-{index}.png"
         size = tuple(round(value * dpr) for value in metadata["logical_sizes"])
-        Image.new("RGB", size, (index * 19, 100, 100)).save(capture)
+        Image.new("RGB", size, ((index * 19) % 256, 100, 100)).save(capture)
         captures.append({"path": str(capture.relative_to(project)), "sha256": hashlib.sha256(capture.read_bytes()).hexdigest(),
                          "state": state, "dpr": dpr, **metadata})
     record = {"contract_digest": gate.contract_digest(project), "source_digest": "source-v1",
@@ -58,7 +64,7 @@ def save(project, record):
 
 def test_current_direction_never_inherits_old_approval(project):
     contract = gate.read_contract(project)
-    assert contract["implementation_status"] == "pending"
+    assert contract["implementation_status"] == "implemented"
     assert gate.review_status(project, contract, "source-v1")[0] == "PENDING"
     assert contract["states"]["empty"]["primary"] == "install_openmenu"
     assert contract["states"]["inaccessible"]["backup"] == "hidden"

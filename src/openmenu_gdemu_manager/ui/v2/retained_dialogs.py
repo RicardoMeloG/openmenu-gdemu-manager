@@ -12,7 +12,6 @@ from . import design
 
 
 RETAINED_DIALOGS = {
-    'BackupPromptDialog': 'backup',
     'LegacyMenuUpgradeDialog': 'upgrade',
     'ConfirmApplyDialog': 'review',
     'ProviderSettingsDialog': 'providers',
@@ -122,6 +121,8 @@ def _translate_standard(dialog):
 
 
 def adapt_dialog(dialog):
+    if dialog.property('v2Dedicated'):
+        return True
     kind = RETAINED_DIALOGS.get(type(dialog).__name__)
     if not kind and not isinstance(dialog, (QMessageBox, QInputDialog)):
         return False
@@ -154,9 +155,9 @@ def adapt_dialog(dialog):
             item.setProperty('muted', True)
             item.setMinimumHeight(0)
             design.repolish(item)
-    if kind in ('backup', 'upgrade'):
+    if kind == 'upgrade':
         dialog.setMinimumSize(620, 300)
-        dialog.resize(740, 420 if kind == 'backup' else 340)
+        dialog.resize(740, 340)
         hero = dialog.findChild(QObject, 'WizardHero')
         if hero:
             hero.setMinimumHeight(0)
@@ -165,19 +166,7 @@ def adapt_dialog(dialog):
             picture = next((item for item in hero.findChildren(QLabel) if not item.pixmap().isNull()), None)
             if picture:
                 picture.setFixedSize(36, 36)
-                picture.setPixmap(design.icon('folder-open' if kind == 'backup' else 'refresh', size=32).pixmap(32, 32))
-        if kind == 'backup':
-            # Choose destination is navigation, separate from backup/skip/cancel.
-            chooser = dialog.choose_button
-            for index in range(layout.count()):
-                row = layout.itemAt(index).layout()
-                if row and row.indexOf(chooser) >= 0:
-                    row.removeWidget(chooser)
-                    layout.insertWidget(index, chooser, 0, Qt.AlignmentFlag.AlignLeft)
-                    break
-            pictures = [item for item in dialog.findChildren(QLabel) if item.width() == 28 and not item.pixmap().isNull()]
-            for item, glyph in zip(pictures, ('device-sd-card', 'folder-open')):
-                item.setPixmap(design.icon(glyph).pixmap(24, 24))
+                picture.setPixmap(design.icon('refresh', size=32).pixmap(32, 32))
     if kind == 'providers':
         dialog.setMinimumSize(620, 360)
         dialog.resize(920, 500)

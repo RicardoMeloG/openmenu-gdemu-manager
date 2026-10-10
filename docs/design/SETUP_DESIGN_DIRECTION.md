@@ -26,8 +26,13 @@ El contenido dicta la altura; no se rellena la ventana con un gran espacio vací
   continuar. No ofrecer respaldo de una tarjeta sin contenido.
 - Lista: **Usar destino**. La comprobación es de estructura y permisos, no un test
   físico de la SD ni garantía de que los juegos arrancan.
-- Solo lectura: **Ver colección**, solo si el diagnóstico permite escanear;
-  no prometer guardar ni aplicar cambios.
+- Menú antiguo o desconocido migrable: **Revisar actualización**. Abre la revisión
+  original de respaldo y actualización; no promete mostrar una colección que
+  el controlador original bloquea hasta actualizar. Cancelar no escribe.
+- Solo lectura sin migración: **Ver colección**, solo si el diagnóstico permite
+  escanear. Este estado de presentación se prueba con permisos simulados: hoy el
+  diagnóstico real emite los casos de lectura bloqueada como menús migrables.
+  No se declara un flujo real nuevo de inspección de menús antiguos.
 - Inaccesible: **Seleccionar otro destino**; sin respaldo ni continuación.
 - Bloqueada por seguridad: carpeta legible con contenido ajeno; explicar que
   se protege ese contenido. Es diferente de un error de acceso. El respaldo
@@ -43,7 +48,8 @@ El contenido dicta la altura; no se rellena la ventana con un gran espacio vací
 
 La referencia no implica adoptar HTML, Tailwind ni un navegador. Usar los tokens
 existentes, los controles compartidos y composiciones Qt pequeñas:
-`DestinationStrip`, `SetupStatusCard`, `BackupRecommendationCard`, `SetupFooter`.
+`Header`, `PathStrip`, `StatusCard`, tarjeta de recomendación, `footer` y
+`Confirmation` en `ui/v2/preparation.py`.
 Separar iconos de acción, insignias de estado e ilustraciones decorativas.
 Las composiciones presentan datos/emiten intenciones; `SetupWizardV2` conserva
 las decisiones y servicios originales. No duplicar lógica de permisos o respaldo.
@@ -57,11 +63,14 @@ funcionales existentes no acreditan toda esta matriz visual por sí solas.
 
 ## Alcance y estado
 
-**Contrato incorporado; adaptación visual del asistente pendiente.** La pantalla
-compacta actual conserva su evidencia funcional anterior. Su aprobación histórica
-no aprueba esta nueva dirección. Colección, detalle de carátulas (seis alternativas,
+**Adaptación nativa implementada para preparación y respaldo.** La aprobación
+independiente de esta revisión se registra por separado en SETUP_DESIGN_VALIDATION.md;
+la aceptación humana y las pruebas de hardware siguen pendientes. La aprobación
+histórica del asistente compacto no aprueba por sí sola esta nueva dirección. Colección, detalle de carátulas (seis alternativas,
 paginación, ampliación/comparación), importación y diálogos restantes conservan
-sus contratos; no se rediseñan mediante esta referencia.
+sus contratos; no se rediseñan mediante esta referencia. El diálogo original
+BackupPromptDialog se reemplaza visualmente por BackupPromptV2, conservando su
+trabajador y servicio; permanece disponible en --legacy-ui.
 
 ## Arnés y revisión
 
@@ -82,3 +91,34 @@ las interacciones. La cobertura de ejes no equivale al producto cartesiano compl
 La revisión está ligada a las huellas del contrato y las fuentes. Cambios en el
 contrato, código o capturas invalidan la aprobación; el arnés nunca la concede
 por sí mismo ni sustituye la aceptación humana o las pruebas en Dreamcast.
+
+## Respaldo integrado en la misma dirección
+
+La segunda referencia del usuario, respaldo con selección, confirmación y cuatro
+resultados, está preservada sin edición y con SHA256 en `related_references`.
+Origen y destino son campos inspeccionables/copíables de solo lectura. Elegir
+carpeta se sitúa junto al destino. Las tres decisiones permanecen disponibles
+en compacto: Cancelar, Continuar sin respaldo y Respaldar ahora; un respaldo
+obligatorio oculta la omisión. El pie queda fuera del contenido desplazable.
+
+La casilla no persiste por marcarla: la confirmación explica si se omite esta
+vez o se recuerda para ese destino y estructura de colección. En el asistente,
+la preferencia se guarda únicamente tras confirmación explícita. Los registros
+de respaldo existentes conservan la política original.
+
+Preparación muestra el trabajo real de enumeración del servicio, sin pasos de
+verificación ficticios. La copia muestra archivos copiados y tiempo transcurrido;
+no inventa bytes, velocidad ni tiempo restante. La barra representa archivos,
+no porcentaje de bytes. El servicio actual no admite cancelación segura: ruta,
+acciones y cierre permanecen bloqueados hasta la limpieza del trabajador.
+Éxito conserva ubicación, Abrir carpeta y Continuar. Error conserva explicación,
+detalles desplegables, Elegir carpeta y Reintentar; puede haber copia parcial,
+pero no se registra éxito. La instalación conserva su confirmación original y
+muestra resultado antes de salir. Los selectores de archivos son nativos del SO.
+
+Diagnóstico e instalación conservan los servicios originales ejecutados en un
+QThread; un bucle Qt atiende eventos mientras el controlador mantiene las acciones
+protegidas. Tab desplaza la vista hasta todos los controles enfocados, incluida la
+casilla. Enter en el campo de ruta solo comprueba; no ejecuta la acción principal.
+Un resultado de instalación desconocido no se anuncia como éxito. Una copia completa
+sin registro en origen se distingue de un fallo de copia y se conserva su ubicación.

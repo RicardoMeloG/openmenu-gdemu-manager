@@ -31,8 +31,12 @@ functional/transaction evidence; its approval did not certify all screens.
 | Configuration inspection | Optional missing file is neutral, independent from game integrity and write permission; nonconfirmed/invalid content directs users to technical details. Settings, line numbers and documented bounds are localized and escaped. Long inputs have a bounded view with omitted counts. |
 | Edited destination | Prior approval invalidated; current path diagnosed again before installation/acceptance. |
 | Diagnostic details | Expandable scroll area with all diagnostic categories and original path/classification/menu/permission values; local filesystem N/A is plain neutral text. |
-| Backup in setup | Original worker/service/registry; route changes and closure blocked through thread cleanup. |
-| Backup prompt | Compact hero and outline source/destination icons; choose destination separate from backup/skip/cancel; required backup still omits Skip. Cancel/window close cannot abandon an active worker. |
+| Backup in setup | Dedicated BackupPromptV2 over original worker/service/registry; parent route and close blocked until child exits. Recommendation only for actual content/access. |
+| Backup prompt / required | Illustrated native header, adjacent destination chooser, inspectable source/target strips, optional reminder checkbox. All three choices remain in compact footer; required backup omits Skip. |
+| Skip / remembered preference confirmation | Compact Confirmation with safe Back default; skip once does not persist; checking reminder persists only after explicit confirmation. |
+| Backup preparing / copying | Actual original worker; file-count progress and measured elapsed time; no byte ETA or fake cancel. Cancel/window close cannot abandon worker cleanup. |
+| Backup failure / retry | Inline persistent error and scrollable technical details; destination chooser and retry remain accessible. Partial copies never display success. |
+| Backup success | Persistent result with location, Open folder and explicit Continue; completed copy manifest/registry retain original semantics. |
 | Old-menu upgrade | Shared hierarchy/roles/icons; backup-first, update and cancel preserved. |
 | Manual and batch save review | All five counts retained: covers, additions, deletion, slot moves and ID corrections; transactional explanation and destination preserved. Shared hierarchy/file icons replace missing-icon warnings. |
 | Provider settings | All seven columns retained and scrollable; buttons and priority controls fit cells; current statuses, signup, testing and credentials remain available. |
@@ -44,7 +48,7 @@ functional/transaction evidence; its approval did not certify all screens.
 | Recovery / repair / generic confirmation | Standard and authored QMessageBox roles/defaults/conditional branches preserved; icons and translated standard buttons. |
 | Template URL / music volume | QInputDialog buttons receive V2 icons and translated labels; OS controls and values preserved. |
 | Exports / template ZIP / image and game pickers | OS-owned file dialogs; parent busy/result/error UI uses V2 treatment. |
-| Collection / cover details / import | Existing dedicated V2 views retained and still exercised by workflow tests. CandidateDialog, CoverPreviewDialog, AddGameDialog and original SetupWizardDialog are explicitly replaced. |
+| Collection / cover details / import | Existing dedicated V2 views retained and still exercised by workflow tests. CandidateDialog, CoverPreviewDialog, AddGameDialog and original SetupWizardDialog/BackupPromptDialog are explicitly replaced in V2; legacy UI remains available. |
 
 ## Evidence and approval boundaries
 
@@ -106,8 +110,23 @@ is separate from these desktop screens.
 
 ## Setup art direction — 10 October 2026
 
-The new [setup contract](design/SETUP_DESIGN_DIRECTION.md) supersedes the compact
-setup art direction only. It is accepted as a design base, not implemented or
-visually approved in Qt yet. See generated [design evidence](SETUP_DESIGN_VALIDATION.md).
-Historical approvals above apply to the earlier implementation; they cannot
-close the new composition, illustration, state matrix or responsive review.
+The [illustrated preparation/backup contract](design/SETUP_DESIGN_DIRECTION.md)
+supersedes the compact setup direction. Shared native components, state badges,
+artwork and outline command icons have distinct roles. Tests in
+test_v2_preparation.py exercise actual generated-file copy, error and retry,
+compact sizes, EN/ES, both themes and persistent results. The source-bound visual
+gate in SETUP_DESIGN_VALIDATION.md records the new independent review; historical
+approval and functional PASS do not approve this direction automatically.
+
+
+Illustrated dev7 scope adds source-bound evidence for all 18 preparation/backup
+states. The independent review requested reproductions for read-only registry,
+incompatible installation, folder switching after installation, contextual notices,
+failed preference persistence, keyboard checkbox visibility and action accessibility.
+Those regressions now have generated-file/native Qt tests. Slow install/check calls
+keep Qt events active through a protected service thread. New approval is recorded
+in SETUP_DESIGN_VALIDATION.md separately from previous compact-screen acceptance.
+
+Legacy menu handoff: the setup action now says Review update for migratable old/unknown menus, matching the original backup/update review. It does not promise collection inspection before an upgrade. Generic read-only presentation is tested with simulated permissions; it is not reported as a new end-to-end legacy inspection flow. Cancelling review preserves source files.
+
+Compact confirmation text has its own regression: its wrapped label must reserve heightForWidth at the actual width, and the final preference paragraph must be visible after keyboard scrolling. Button reachability alone did not establish that text was readable. The skip message distinguishes Save and old-menu Update, instead of promising an exclusively read-only next step.

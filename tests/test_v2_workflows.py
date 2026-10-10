@@ -509,3 +509,36 @@ def test_cdi_import_uses_real_validation_and_clear_status(window, tmp_path, monk
     dialog.reject(); dialog.deleteLater(); QApplication.instance().processEvents()
     assert image.read_bytes() == before
     set_language('es')
+
+
+def test_setup_legacy_action_hands_off_to_original_update_review(window, monkeypatch):
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QDialog
+    from openmenu_gdemu_manager.ui.v2 import setup
+    from openmenu_gdemu_manager.dreamcast.storage_diagnostics import diagnose_storage
+    (window.root_path/'01').mkdir()
+    (window.root_path/'01/track05.iso').write_bytes(b'unknown synthetic menu')
+    diagnostic=diagnose_storage(window.root_path)
+    assert diagnostic.legacy_menu_migratable and not diagnostic.write_allowed
+    events=[]
+    monkeypatch.setattr(window,'_can_abandon',lambda:True)
+    monkeypatch.setattr(window,'operation_running',lambda:False)
+    monkeypatch.setattr(window,'_has_registered_backup',lambda _:False)
+    monkeypatch.setattr(window,'open_backup_prompt',lambda *args,**kwargs:events.append('backup') or True)
+    class UpgradeReview:
+        def __init__(self,*args):events.append('upgrade')
+        def exec(self):return QDialog.DialogCode.Rejected
+    monkeypatch.setattr(legacy,'LegacyMenuUpgradeDialog',UpgradeReview)
+    monkeypatch.setattr(window,'start_scan',lambda:window.finish_diagnostic(diagnose_storage(window.root_path)))
+    original_exec=setup.SetupWizardV2.exec
+    def reviewed_exec(dialog):
+        assert dialog.phase=='legacy_upgrade_required'
+        assert dialog.use_button.text()==catalog.tr('setup_upgrade_action')
+        QTimer.singleShot(0,dialog.use_button.click)
+        return original_exec(dialog)
+    monkeypatch.setattr(setup.SetupWizardV2,'exec',reviewed_exec)
+    before=(window.root_path/'01/track05.iso').read_bytes()
+    window.open_setup_wizard(diagnostic)
+    assert events==['backup','upgrade']
+    assert not window.write_allowed and window.games==[]
+    assert (window.root_path/'01/track05.iso').read_bytes()==before
