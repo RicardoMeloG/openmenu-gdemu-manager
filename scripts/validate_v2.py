@@ -8,23 +8,31 @@ DOC=ROOT/'docs/V2_VALIDATION.md'
 
 
 def source_digest():
-    paths=list((ROOT/'src').rglob('*.py'))+list((ROOT/'src').rglob('*.json'))+list((ROOT/'src').rglob('*.svg'))+list((ROOT/'tests').rglob('*.py'))+list((ROOT/'openmenu_gdemu_manager').glob('*.py'))+[ROOT/'pyproject.toml',Path(__file__)]
+    paths=list((ROOT/'src').rglob('*.py'))+list((ROOT/'src').rglob('*.json'))+list((ROOT/'src').rglob('*.svg'))+list((ROOT/'tests').rglob('*.py'))+list((ROOT/'openmenu_gdemu_manager').glob('*.py'))+[ROOT/'pyproject.toml',Path(__file__),ROOT/'scripts/check_setup_design.py',ROOT/'docs/design/setup-direction.json',ROOT/'docs/design/SETUP_DESIGN_DIRECTION.md']
+    raster_suffixes={'.png','.jpg','.jpeg','.webp','.gif','.bmp','.ico'}
+    paths += [path for path in (ROOT/'src').rglob('*') if path.is_file() and path.suffix.lower() in raster_suffixes]
     digest=hashlib.sha256()
     for path in sorted(paths):
-        digest.update(path.relative_to(ROOT).as_posix().encode());digest.update(path.read_bytes().replace(b'\r\n',b'\n'))
+        content=path.read_bytes()
+        if path.suffix.lower() not in raster_suffixes:content=content.replace(b'\r\n',b'\n')
+        digest.update(path.relative_to(ROOT).as_posix().encode());digest.update(content)
     return digest.hexdigest()
 
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--check-docs',action='store_true');args=parser.parse_args()
+    from check_setup_design import refresh as refresh_design
     digest=source_digest()
     if args.check_docs:
         evidence=DOC.read_text(encoding='utf-8') if DOC.is_file() else ''
         if f'`{digest}`' not in evidence or 'Result: **PASS**' not in evidence:
             print('V2 evidence is stale. Run python scripts/validate_v2.py.');return 1
-        print('V2 documentation matches source.');return 0
+        if not refresh_design(ROOT,digest,check=True):
+            print('Setup design documentation is stale. Run python scripts/validate_v2.py.');return 1
+        print('V2 documentation matches source; setup design status is reported separately.');return 0
     target=ROOT/'build/v2-validation';target.mkdir(parents=True,exist_ok=True)
     DOC.write_text(f'# V2 generated validation\n\nSource digest: `{digest}`\n\nResult: **RUNNING**\n',encoding='utf-8')
+    refresh_design(ROOT,digest)
     rows=[];success=True
     runs=[('offscreen',scale) for scale in ('1','1.25','1.5')]
     if sys.platform=='win32':runs.append(('windows','system'))
@@ -52,6 +60,7 @@ def main():
         'These checks use generated covers and synthetic discs. They do not contact online providers or write to a real SD. Network tests are skipped in this offline suite; current opt-in provider evidence is recorded separately in docs/V2_PROVIDER_VALIDATION.md.',
         '', 'Design coverage: compact setup (choose/empty/blocked/read-only/ready/installed and expanded details, read-only GDEMU.ini findings in both languages, bounded rendering and stale-destination invalidation); backup; upgrade; save review with all five counts; providers and credentials; first-run language; About; bulk progress; standard messages and template inputs. Every exported original dialog has an explicit adapted/replaced disposition. Scrollable provider cells and fixed footers have separate reachability checks.',
         '', 'Rendered screenshots are generated in `build/v2-validation/visual-<backend>-<scale>/`. Automated reachability and snapshots do not substitute for human visual review; its findings and scope are recorded in `docs/V2_DIALOG_DESIGN_AUDIT.md`.',
+        '', 'Setup art direction has a separate design gate in `docs/SETUP_DESIGN_VALIDATION.md`; a functional PASS in this report does not approve that new composition. Run `python scripts/check_setup_design.py --require-approval` before claiming it visually complete.',
         '', 'Portable startup is checked separately with `OpenMenuGDEMUManager.exe --self-test report.json`. It must report v2 startup/icons with no errors and without SD scanning or network requests.',
         '', '**Release gates still pending:** clean Windows VM; private/credentialed provider checks; real-world unsupported CDI layouts/deeper image checks; Dreamcast/GDEMU launch of imported GDI/CDI games. Existing v1 hardware reports do not certify this v2 build.','']
     DOC.write_text('\n'.join(lines),encoding='utf-8')

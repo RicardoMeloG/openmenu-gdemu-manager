@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "id": "setup-dreamcast-2026-10-10",
+  "screen": "SetupWizardV2",
+  "implementation_status": "pending",
+  "reference": {
+    "local_path": "local-artifacts/design/setup-direction-2026-10-10.png",
+    "sha256": "7b2ed28311f0414102ecb662eb33d9bff96e6500f187311e276f552490b57d30",
+    "origin": "Referencia visual aportada por el usuario; conservar sin editar.",
+    "role": "Dirección artística y composición; la matriz funcional prevalece sobre los textos de la imagen."
+  },
+  "scope": {
+    "change": [
+      "SD preparation wizard"
+    ],
+    "preserve": [
+      "compact collection",
+      "six cover candidates and pagination",
+      "enlarge and comparison",
+      "original storage/setup/backup services",
+      "legacy UI fallback",
+      "template action semantics"
+    ]
+  },
+  "regions": [
+    "heading",
+    "destination",
+    "status",
+    "backup_optional",
+    "footer"
+  ],
+  "qt_components": {
+    "atoms": [
+      "shared Button",
+      "outline command icon",
+      "state badge",
+      "destination reminder checkbox",
+      "decorative illustration"
+    ],
+    "composites": [
+      "DestinationStrip",
+      "SetupStatusCard",
+      "BackupRecommendationCard",
+      "SetupFooter"
+    ],
+    "controller": "SetupWizardV2 retains original diagnosis/install/backup services; composites present state and emit intents."
+  },
+  "states": {
+    "unselected": {
+      "primary": "choose_destination",
+      "backup": "hidden"
+    },
+    "checking": {
+      "primary": "none",
+      "backup": "hidden"
+    },
+    "empty": {
+      "primary": "install_openmenu",
+      "backup": "hidden"
+    },
+    "ready": {
+      "primary": "use_destination",
+      "backup": "conditional"
+    },
+    "readonly": {
+      "primary": "inspect_destination",
+      "backup": "conditional"
+    },
+    "inaccessible": {
+      "primary": "choose_other_destination",
+      "backup": "hidden"
+    },
+    "security_blocked": {
+      "primary": "choose_other_destination",
+      "backup": "conditional"
+    },
+    "backup_running": {
+      "primary": "none",
+      "backup": "progress"
+    },
+    "backup_failed": {
+      "primary": "retry_backup",
+      "backup": "retry"
+    },
+    "install_running": {
+      "primary": "none",
+      "backup": "hidden"
+    },
+    "install_failed": {
+      "primary": "retry_install_if_allowed",
+      "backup": "hidden"
+    },
+    "installed": {
+      "primary": "continue",
+      "backup": "conditional"
+    }
+  },
+  "matrix": {
+    "languages": [
+      "es",
+      "en"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "logical_sizes": [
+      [
+        640,
+        420
+      ],
+      [
+        720,
+        500
+      ],
+      [
+        900,
+        620
+      ]
+    ],
+    "qt_scales": [
+      "1",
+      "1.25",
+      "1.5",
+      "windows-system"
+    ],
+    "disclosure": [
+      "collapsed",
+      "expanded"
+    ]
+  },
+  "manual_checks": [
+    {
+      "id": "composition",
+      "criterion": "Destino agrupado; tarjeta de estado dominante; respaldo secundario; pie estable. Sin expansión vacía artificial."
+    },
+    {
+      "id": "artwork",
+      "criterion": "Ilustración Dreamcast/SD expresiva y contenida; no reemplaza texto ni se confunde con un botón."
+    },
+    {
+      "id": "icons",
+      "criterion": "Acciones con Tabler outline y tamaños compartidos; símbolos de estado separados de las ilustraciones."
+    },
+    {
+      "id": "state_actions",
+      "criterion": "Cada estado respeta la matriz; vacío instala; inaccesible permite elegir otro destino; solo lectura no promete escritura."
+    },
+    {
+      "id": "backup",
+      "criterion": "Solo cuando hay contenido respaldable y acceso; preferencia por destino con confirmación; ocupado protege ruta y cierre."
+    },
+    {
+      "id": "details",
+      "criterion": "Expansión accesible con valores originales; N/A neutral; alcance estructural sin garantía de salud ni de arranque."
+    },
+    {
+      "id": "responsive",
+      "criterion": "En tamaños pequeños se reduce u oculta arte primero; pie y acciones alcanzables; detalles desplazables sin recortes."
+    },
+    {
+      "id": "keyboard",
+      "criterion": "Foco visible, orden de tabulación, Enter/Escape y lector de pantalla coherentes; decoración no recibe foco."
+    },
+    {
+      "id": "localization_theme",
+      "criterion": "Español/inglés, claro/oscuro y DPI sin recortes; semántica independiente del color."
+    },
+    {
+      "id": "continuity",
+      "criterion": "Editar destino revoca aprobación; instalar requiere confirmación y muestra resultado; errores y reintentos no simulan éxito."
+    }
+  ],
+  "approval_policy": "Functional PASS does not approve design. Implementation complete, matching source/contract digests, all manual checks passed and an independent named reviewer with hashed screenshots are required. Human acceptance and hardware gates remain separate."
+}

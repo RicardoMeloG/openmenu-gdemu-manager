@@ -8,7 +8,9 @@ functional/transaction evidence; its approval did not certify all screens.
 
 - V2 tokens define color, typography, spacing, controls and icon size. Commands
   use the shared Tabler outline family. Bitmap covers and brand logos retain
-  their purposes; diagnostic and backup illustrations are replaced with outline icons.
+  their purposes. Command icons stay outline; decorative setup artwork follows
+  the accepted [setup direction](design/SETUP_DESIGN_DIRECTION.md). The old
+  blanket replacement of diagnostic illustrations is superseded for setup.
 - One clear primary next action; a compact state/reason; secondary navigation
   and expandable technical information. Neutral/not-applicable information
   must not be presented as a successful SD check.
@@ -101,3 +103,11 @@ unselectable with distinct localized explanations. Native captures and
 regressions exercise checked/invalid/unsupported in EN/ES through InspectWorker;
 no preview, pagination or action layout is replaced. The CLI/MCP architecture
 is separate from these desktop screens.
+
+## Setup art direction — 10 October 2026
+
+The new [setup contract](design/SETUP_DESIGN_DIRECTION.md) supersedes the compact
+setup art direction only. It is accepted as a design base, not implemented or
+visually approved in Qt yet. See generated [design evidence](SETUP_DESIGN_VALIDATION.md).
+Historical approvals above apply to the earlier implementation; they cannot
+close the new composition, illustration, state matrix or responsive review.

@@ -207,3 +207,22 @@ The final full/DPI harness result is generated separately in
 [V2_PORTABLE_VALIDATION.md](V2_PORTABLE_VALIDATION.md). This review is not approval
 of physical SD/Dreamcast operation, a clean Windows installation, all native
 crashes or complete anonymization of user data. No MCP server is added.
+
+## Setup design base / harness — 10 October 2026
+
+Independent reviewer: `setup_direction_harness_audit`, started without conversation
+history. Scope: the supplied visual reference, setup contract, documentation and
+the evidence gate; not a rendered implementation of that new direction.
+
+The reviewer confirmed the reference SHA256 and accepted composition/state
+corrections. It found that a file merely named PNG could be reused as evidence
+for all states, that reference content was not checked, and that raster resources
+were absent from the source fingerprint. Corrections validate PNG format, unique
+captures, dimensions/DPR, reference hash and raw raster bytes. Regression tests
+cover malformed/stale/incomplete records and changed resources.
+
+Final disposition: **approved for incorporating the design base and harness**.
+The Qt adaptation and its own visual review remain **pending**. A recorded
+review is a named manual attestation bound to sources/captures; no programmatic
+check certifies aesthetic fidelity or the execution of interactions. See the
+generated `SETUP_DESIGN_VALIDATION.md` and `V2_VALIDATION.md` for current results.

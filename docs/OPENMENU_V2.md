@@ -15,7 +15,10 @@ with zoom and synchronized pan. The OpenMenu preview uses the project's actual
 Pillow normalizer. The original scan is not color-corrected or cropped.
 
 Shared tokens, action semantics, Tabler SVG icons and Qt atoms live in
-`ui/v2/design.py` and `resources/v2/`. Bitmap assets remain covers and branding.
+`ui/v2/design.py` and `resources/v2/`. Command icons remain consistent; artwork has a separate decorative role.
+The accepted [setup art direction](design/SETUP_DESIGN_DIRECTION.md) adds an
+illustrated state card and grouped destination/backup layout. Its Qt adaptation
+is pending; the current compact wizard is not claimed to match that reference.
 There is no Tailwind/browser dependency. The original template registry still
 supports palettes, backgrounds and music. V2 gives the default formal template
 the approved warm orange palette; explicitly selected external/arcade palettes

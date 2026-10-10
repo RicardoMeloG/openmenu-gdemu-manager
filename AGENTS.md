@@ -14,7 +14,11 @@ For UI changes, inventory every reachable screen and state, including inherited
 dialogs, startup language, QMessageBox/QInputDialog, progress and recovery.
 Maintain the explicit retained/replaced disposition in `tests/test_v2_dialogs.py`
 and `docs/V2_DIALOG_DESIGN_AUDIT.md`. Functional PASS is not visual approval.
-Review generated screenshots as well as behavior/geometry tests, and state the
+For SD setup, follow `docs/design/SETUP_DESIGN_DIRECTION.md` and its state matrix.
+Run `python scripts/check_setup_design.py --require-approval` before claiming
+the new setup design complete or visually approved; a pending result is allowed
+for design-contract work but must be reported. Never automatically approve a
+manual visual checklist. Review generated screenshots as well as behavior/geometry tests, and state the
 remaining manual/hardware gates. Do not count a callable method as screen coverage.
 
 This file defines mandatory engineering rules for contributors and AI agents.
