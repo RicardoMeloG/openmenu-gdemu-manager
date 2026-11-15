@@ -26,7 +26,7 @@ Este repositorio no incluye ROMs, BIOS, datos comerciales de juegos, respaldos d
 
 ## Descargar
 
-Descarga el ZIP portable para Windows desde [GitHub Releases](https://github.com/OlemOdracir/openmenu-gdemu-manager/releases).
+Descarga el ZIP portable para Windows desde [GitHub Releases](https://github.com/RicardoMeloG/openmenu-gdemu-manager/releases).
 
 Extrae el ZIP completo y ejecuta:
 
@@ -134,7 +134,7 @@ ScreenScraper directo queda como opcion avanzada para usuarios que quieran confi
 
 ## Contacto
 
-[GitHub Issues](https://github.com/OlemOdracir/openmenu-gdemu-manager/issues)
+[GitHub Issues](https://github.com/RicardoMeloG/openmenu-gdemu-manager/issues)
 
 ## Licencia
 
