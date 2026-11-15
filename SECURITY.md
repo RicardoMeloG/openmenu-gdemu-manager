@@ -4,7 +4,7 @@
 
 Please report security-sensitive issues through GitHub's private vulnerability reporting when it is available for the repository:
 
-https://github.com/OlemOdracir/openmenu-gdemu-manager/security/advisories/new
+https://github.com/RicardoMeloG/openmenu-gdemu-manager/security/advisories/new
 
 If private reporting is not available, open a public issue with a minimal description and do not include sensitive logs, personal paths, ROMs, BIOS files, SD backups, or credentials.
 
