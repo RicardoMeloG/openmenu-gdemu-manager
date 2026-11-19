@@ -33,7 +33,7 @@ from ..services.transaction_log import append_transaction, new_operation_id
 from ..app.logger import operation_context
 
 log = logging.getLogger(__name__)
-GITHUB_RELEASES_API = "https://api.github.com/repos/OlemOdracir/openmenu-gdemu-manager/releases"
+GITHUB_RELEASES_API = "https://api.github.com/repos/RicardoMeloG/openmenu-gdemu-manager/releases"
 
 
 def start_worker(worker: QObject, thread_attr: str, worker_attr: str, owner,
