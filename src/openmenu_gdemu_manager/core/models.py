@@ -102,3 +102,4 @@ class RomLibraryEntry:
     date: str = ""
     existing_match: bool = False
     cover_path: str = ""
+    size_bytes: int = 0

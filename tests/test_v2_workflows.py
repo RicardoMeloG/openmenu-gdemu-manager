@@ -255,6 +255,104 @@ def test_import_filter_hides_rows_without_changing_selection(window,language):
     set_language('es')
 
 
+@pytest.mark.parametrize('language',['en','es'])
+def test_import_all_acts_on_visible_games_while_filtering(window,language):
+    set_language(language)
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    dialog.received([(RomLibraryEntry('Hydro Thunder','CDI',r'G:\roms\Hydro Thunder\disc.cdi'),''),
+                     (RomLibraryEntry('4 Wheel Thunder','CDI',r'G:\roms\4 Wheel Thunder\disc.cdi'),''),
+                     (RomLibraryEntry('Sonic Adventure','GDI',r'G:\roms\Sonic Adventure\disc.gdi'),''),
+                     (RomLibraryEntry('Thunder Force','GDI',r'G:\roms\Thunder Force\disc.gdi'),'missing track')])
+    assert dialog.all.text()==catalog.tr('all') and dialog.checked==[True,True,True,False]
+    dialog.filter.setText('thunder')
+    assert dialog.all.text()==catalog.tr('all_visible',count=3) and '{' not in dialog.all.text()
+    assert dialog.all.checkState()==Qt.CheckState.Checked
+    dialog.select_all()
+    # Only the visible, valid games change; the hidden selection survives.
+    assert dialog.checked==[False,False,True,False] and dialog.all.checkState()==Qt.CheckState.Unchecked
+    assert dialog.feedback.text()==catalog.tr('detected_games_filtered',visible=3,count=4,selected=1)
+    dialog.toggle(0,True);assert dialog.all.checkState()==Qt.CheckState.PartiallyChecked
+    dialog.filter.clear()
+    assert dialog.all.text()==catalog.tr('all')
+    dialog.select_all();dialog.select_all();assert dialog.checked==[False,False,False,False]
+    dialog.filter.setText('thunder');dialog.select_all()
+    emitted=[];dialog.selected.connect(emitted.extend);dialog.accept_selection()
+    assert [entry.name for entry in emitted]==['Hydro Thunder','4 Wheel Thunder']
+    set_language('es')
+
+
+def test_import_reuses_inspected_games_until_their_files_change(monkeypatch,tmp_path):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    import_games.clear_inspection_cache()
+    library=tmp_path/'library'
+    for name in ('Alpha','Beta'):
+        (library/name).mkdir(parents=True);(library/name/'disc.cdi').write_bytes(b'x')
+    calls=[]
+    def inspect(path,supported):
+        calls.append(path.parent.name);return RomLibraryEntry(path.parent.name,'CDI',str(path))
+    monkeypatch.setattr(import_games,'inspect_source',inspect)
+    monkeypatch.setattr(import_games,'validate_source',lambda path:None)
+    def run():
+        worker=import_games.InspectWorker([library],{'CDI'});records=[]
+        worker.finished.connect(records.extend);worker.run()
+        return sorted(records,key=lambda record:record[0].name)
+    first=run();assert sorted(calls)==['Alpha','Beta']
+    first[0][0].existing_match=True
+    second=run()
+    # Picking the same folder again reads no image: only the listing is repeated.
+    assert sorted(calls)==['Alpha','Beta'] and [r[0].name for r in second]==['Alpha','Beta']
+    assert not second[0][0].existing_match and second[0][0].size_bytes==1
+    (library/'Beta'/'disc.cdi').write_bytes(b'xy')
+    (library/'Gamma').mkdir();(library/'Gamma'/'disc.cdi').write_bytes(b'z')
+    third=run()
+    assert sorted(calls)==['Alpha','Beta','Beta','Gamma'] and [r[0].size_bytes for r in third]==[1,2,1]
+    import_games.clear_inspection_cache()
+
+
+def test_import_folder_picker_starts_in_the_last_folder(window,monkeypatch,tmp_path):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    monkeypatch.setattr(import_games,'_last_folder','')
+    asked=[]
+    def picker(parent,caption,start=''):
+        asked.append(start);return str(tmp_path)
+    monkeypatch.setattr(import_games.QFileDialog,'getExistingDirectory',picker)
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    monkeypatch.setattr(dialog,'inspect_paths',lambda paths:None)
+    dialog.pick_folder();dialog.reject()
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    monkeypatch.setattr(dialog,'inspect_paths',lambda paths:None)
+    dialog.pick_folder();dialog.reject()
+    assert asked==['',str(tmp_path)]
+
+
+def test_import_shows_size_and_blocks_a_selection_that_does_not_fit(window,monkeypatch):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    gb=1024**3
+    monkeypatch.setattr(import_games,'free_space',lambda root:import_games.SPACE_MARGIN_BYTES+3*gb)
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    assert dialog.free_slots==123 and dialog.available_bytes==3*gb and dialog.capacity.isHidden()
+    dialog.received([(RomLibraryEntry('A','CDI','a.cdi',size_bytes=2*gb),''),(RomLibraryEntry('B','CDI','b.cdi',size_bytes=2*gb),''),(RomLibraryEntry('C','CDI','c.cdi',size_bytes=gb),'')])
+    text=dialog.capacity.text()
+    assert not dialog.prepare.isEnabled() and catalog.tr('selection_too_big',missing='2.0 GB') in text
+    assert catalog.tr('selection_capacity',size='5.0 GB',free='3.0 GB',slots=123) in text and '{' not in text
+    emitted=[];dialog.selected.connect(emitted.extend);dialog.accept_selection();assert not emitted
+    dialog.toggle(0,False)
+    assert dialog.prepare.isEnabled() and dialog.capacity.text()==catalog.tr('selection_capacity',size='3.0 GB',free='3.0 GB',slots=123)
+    dialog.reject()
+
+
+def test_import_blocks_more_games_than_free_positions(window,monkeypatch):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    monkeypatch.setattr(import_games,'free_space',lambda root:10*1024**4)
+    games=[GameItem(slot,f'G{slot}') for slot in range(2,126)]
+    dialog=ImportGamesDialog(window.settings,games,window)
+    assert dialog.free_slots==2
+    dialog.received([(RomLibraryEntry(name,'CDI',f'{name}.cdi',size_bytes=1),'') for name in ('A','B','C')])
+    assert not dialog.prepare.isEnabled() and catalog.tr('selection_too_many',count=3,slots=2) in dialog.capacity.text()
+    dialog.toggle(2,False);assert dialog.prepare.isEnabled()
+    dialog.reject()
+
+
 def test_pending_save_button_keeps_readable_primary_colors(window):
     from openmenu_gdemu_manager.ui.v2 import design
     window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
@@ -293,11 +391,36 @@ def test_import_cannot_accept_or_enable_prepare_while_inspection_runs(window,mon
     dialog.toggle(0,True);dialog.accept_selection()
     assert not emitted and not dialog.prepare.isEnabled() and not dialog.table.isEnabled()
     assert dialog.scan_thread in window.cover_jobs
+    # A slow (mechanical) disk shows the spinning-disc loading screen over the list.
+    assert not dialog.busy.isHidden() and dialog.busy.spinner.timer.isActive()
     for _ in range(100):
         QTest.qWait(10)
         if dialog.scan_thread is None:break
     assert dialog.scan_thread is None and dialog.prepare.isEnabled() and dialog.table.isEnabled()
+    assert dialog.busy.isHidden() and not dialog.busy.spinner.timer.isActive()
     dialog.accept_selection();assert [entry.name for entry in emitted]==['Ready']
+
+
+def test_import_inspection_reports_listing_then_each_game(window,monkeypatch,tmp_path):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    for name in ('Alpha','Beta'):
+        (tmp_path/'library'/name).mkdir(parents=True)
+        (tmp_path/'library'/name/'disc.cdi').write_bytes(b'x')
+    monkeypatch.setattr(import_games,'inspect_source',lambda path,supported:RomLibraryEntry(path.parent.name,'CDI',str(path)))
+    monkeypatch.setattr(import_games,'validate_source',lambda path:None)
+    worker=import_games.InspectWorker([tmp_path/'library'],{'CDI'})
+    steps=[];worker.progress.connect(lambda *step:steps.append(step))
+    worker.run()
+    assert steps==[(0,0,''),(1,2,'Alpha'),(2,2,'Beta')]
+    worker=import_games.InspectWorker([tmp_path/'library'],{'CDI'});records=[]
+    worker.finished.connect(records.extend);worker.run()
+    assert [entry.size_bytes for entry,_ in records]==[1,1]
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    dialog.inspection_progress(0,0,'')
+    assert dialog.busy.detail.text()==catalog.tr('source_listing')
+    dialog.inspection_progress(3,40,'Shenmue (PAL) [Disc 1]')
+    assert dialog.busy.detail.text()==catalog.tr('source_scanning_progress',current=3,total=40,name='Shenmue (PAL) [Disc 1]')
+    dialog.reject()
 
 
 def test_save_does_not_auto_accept_bulk_proposals(window,monkeypatch):

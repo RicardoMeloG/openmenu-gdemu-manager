@@ -111,6 +111,7 @@ def apply_theme(app, value="light"):
     QProgressBar::chunk {{ background: {c['accent']}; border-radius: 4px; }}
     QTableWidget {{ background: {c['paper']}; gridline-color: {c['line']}; selection-background-color: {c['accent_soft']}; selection-color: {c['ink']}; border: 1px solid {c['line']}; }}
     QHeaderView::section {{ background: {c['surface']}; color: {c['muted']}; border: 0; border-bottom: 1px solid {c['line']}; padding: 6px; }}
+    QTableWidget#ImportTable QHeaderView::section {{ background: {c['paper']}; color: {c['ink']}; font-weight: 600; border: 0; border-bottom: 2px solid {c['line']}; padding: 8px 6px; }}
     QScrollArea {{ border: none; background: {c['surface']}; }}
     QScrollBar:vertical {{ width: 12px; background: {c['soft']}; margin: 0; }}
     QScrollBar::handle:vertical {{ background: {c['muted']}; border-radius: 5px; min-height: 28px; }}
