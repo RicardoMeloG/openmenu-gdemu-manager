@@ -332,6 +332,32 @@ def test_import_shows_where_the_listed_games_come_from(window,monkeypatch,tmp_pa
     dialog.reject();set_language('es')
 
 
+def test_import_folder_games_start_unchecked_and_hidden_checks_are_explained(window,monkeypatch,tmp_path):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    gb=1024**3
+    monkeypatch.setattr(import_games,'free_space',lambda root:import_games.SPACE_MARGIN_BYTES+3*gb)
+    library=tmp_path/'library';library.mkdir();game_file=tmp_path/'Single.cdi';game_file.write_bytes(b'x')
+    records={'folder':[(RomLibraryEntry(n,'CDI',f'{n}.cdi',size_bytes=2*gb),'') for n in ('Hydro Thunder','Sonic Adventure','Shenmue')],
+             'files':[(RomLibraryEntry('Single','CDI',str(game_file),size_bytes=gb),'')]}
+    def run(worker):worker.finished.emit(records['files' if Path(worker.paths[0]).is_file() else 'folder'])
+    monkeypatch.setattr(import_games.InspectWorker,'run',run)
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    def inspect(path):
+        dialog.inspect_paths([str(path)])
+        for _ in range(100):
+            QTest.qWait(5)
+            if dialog.scan_thread is None:break
+    inspect(library)
+    # A folder is a catalogue: nothing is checked until the user picks games.
+    assert dialog.checked==[False,False,False] and not dialog.prepare.isEnabled()
+    inspect(game_file)
+    assert dialog.checked==[False,False,False,True] and dialog.prepare.isEnabled()
+    dialog.filter.clear();dialog.select_all();dialog.filter.setText('hydro')
+    text=dialog.capacity.text()
+    assert not dialog.prepare.isEnabled() and catalog.tr('selection_hidden',count=3) in text and '{' not in text
+    dialog.reject()
+
+
 def test_import_folder_picker_starts_in_the_last_folder(window,monkeypatch,tmp_path):
     from openmenu_gdemu_manager.ui.v2 import import_games
     monkeypatch.setattr(import_games,'_last_folder','')

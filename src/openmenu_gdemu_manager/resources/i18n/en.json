@@ -726,6 +726,7 @@
     "v2.import_filter": "Filter by name, folder or format",
     "v2.all_visible": "All shown ({count})",
     "v2.source_chosen": "Source: {path}",
+    "v2.selection_hidden": "{count} of the checked games are hidden by the filter. Clear the filter to review them or uncheck them with «All».",
     "v2.source_chosen_many": "Source: {path} and {count} more",
     "v2.save_count": "Save changes ({count})",
     "v2.missing_only": "Only missing covers ({count})",

@@ -200,6 +200,9 @@ class ImportGamesDialog(QDialog):
     def inspect_paths(self,paths):
         if self.scan_thread is not None:return
         self.show_sources(paths)
+        # Picked files are the user's choice; a folder is a catalogue to choose
+        # from, so its games start unchecked instead of the whole library.
+        self._preselect=all(Path(path).is_file() for path in paths)
         self._inspecting=True
         self._inspection_error=''
         self.files.setEnabled(False);self.folder.setEnabled(False);self.prepare.setEnabled(False)
@@ -235,7 +238,8 @@ class ImportGamesDialog(QDialog):
             if entry.source_path.casefold() in known:continue
             known.add(entry.source_path.casefold())
             entry.existing_match=any(entry.name.casefold().strip()==g.name.casefold().strip() or bool(entry.product_id) and entry.product_id==g.product_id for g in self.games)
-            self.entries.append(entry);self.errors.append(error);self.checked.append(not error and not entry.existing_match)
+            self.entries.append(entry);self.errors.append(error)
+            self.checked.append(getattr(self,'_preselect',True) and not error and not entry.existing_match)
         self.render()
 
     def failed(self,message):
@@ -312,6 +316,10 @@ class ImportGamesDialog(QDialog):
         self.capacity.setVisible(bool(self.entries))
         size=format_bytes(self.selected_bytes())
         summary=tr('selection_capacity',size=size,free=format_bytes(max(0,self.available_bytes)),slots=self.free_slots) if self.available_bytes is not None else tr('selection_capacity_slots',size=size,slots=self.free_slots)
+        hidden=sum(1 for row,checked in enumerate(self.checked) if checked and self.table.isRowHidden(row))
+        # A problem caused by games the filter hides must say so, or the visible
+        # selection looks small enough to fit.
+        if problem and hidden:problem+='\n'+tr('selection_hidden',count=hidden)
         self.capacity.setText(summary+('\n'+problem if problem else ''))
         tone='warning' if problem else None
         if self.capacity.property('tone')!=tone:
