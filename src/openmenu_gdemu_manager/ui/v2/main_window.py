@@ -3,8 +3,9 @@ from pathlib import Path
 from ...config.settings import load_settings
 import copy
 import shiboken6
-from PySide6.QtCore import Qt,QSize,QTimer
-from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QHBoxLayout,QHeaderView,QDialog,QMessageBox
+from PySide6.QtCore import Qt,QSize,QTimer,QVariantAnimation,QEasingCurve,QAbstractAnimation
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QHBoxLayout,QHeaderView,QDialog,QMessageBox,QGraphicsDropShadowEffect
 from ... import APP_NAME
 from ...i18n import tr as legacy_tr
 from ...core.image_quality import analyze_image
@@ -19,6 +20,17 @@ from .catalog import tr
 from .design import Button,DestinationButton,label,repolish
 from .collection import CollectionModel,CollectionDelegate,CollectionHeader
 from .bridge import CoverHost,ProductionWorkspace
+
+
+def _animations_enabled():
+    """Windows 'Show animations in Windows' (SPI_GETCLIENTAREAANIMATION)."""
+    try:
+        import ctypes
+        value=ctypes.c_bool(True)
+        if ctypes.windll.user32.SystemParametersInfoW(0x1042,0,ctypes.byref(value),0):return bool(value.value)
+    except (AttributeError,OSError):
+        pass
+    return True
 
 
 class MainWindowV2(MainWindow):
@@ -367,6 +379,50 @@ class MainWindowV2(MainWindow):
             self._rescan_after_worker=False
             self.start_scan()
         else:self.apply_filters()
+
+    # Pending-save emphasis (design option 02, "soft breathe"): one smooth
+    # orange halo instead of the legacy green blink, which barely showed on
+    # the orange primary button.
+    BREATH_MS=1800
+
+    def _update_save_button_state(self):
+        super()._update_save_button_state()
+        count=self.pending_change_count()
+        if count and self.write_allowed:self.save_changes_button.setText(tr('save_count',count=count))
+
+    def _apply_button_glow(self,button):
+        if not self._v2_ready:return super()._apply_button_glow(button)
+
+    def _update_attention_timer(self):
+        if not self._v2_ready:return super()._update_attention_timer()
+        self.save_attention_timer.stop()
+        buttons=(self.save_changes_button,self.save_bulk_button)
+        self._glow_targets=[b for b in buttons if b.property('attention')=='true' and b.isEnabled()]
+        for button in buttons:
+            effect=button.graphicsEffect()
+            if button in self._glow_targets and not isinstance(effect,QGraphicsDropShadowEffect):
+                effect=QGraphicsDropShadowEffect(button);effect.setOffset(0,0);button.setGraphicsEffect(effect)
+            elif button not in self._glow_targets and effect is not None:
+                button.setGraphicsEffect(None)
+        breath=getattr(self,'_breath',None)
+        if breath is None:
+            breath=self._breath=QVariantAnimation(self)
+            breath.setDuration(self.BREATH_MS);breath.setLoopCount(-1)
+            breath.setStartValue(0.0);breath.setKeyValueAt(0.5,1.0);breath.setEndValue(0.0)
+            breath.setEasingCurve(QEasingCurve.Type.InOutSine)
+            breath.valueChanged.connect(self._breathe)
+        if not self._glow_targets:breath.stop();return
+        if not _animations_enabled():
+            # Windows "Show animations" off: keep a steady halo, no motion.
+            breath.stop();self._breathe(.7);return
+        if breath.state()!=QAbstractAnimation.State.Running:breath.start()
+
+    def _breathe(self,value):
+        for button in getattr(self,'_glow_targets',[]):
+            effect=button.graphicsEffect()
+            if not isinstance(effect,QGraphicsDropShadowEffect):continue
+            color=QColor(design.colors()['accent']);color.setAlpha(int(70+160*value))
+            effect.setColor(color);effect.setBlurRadius(8+28*value)
 
     def save_finished(self,message):
         self._before_edits.clear()

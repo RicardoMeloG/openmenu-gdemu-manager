@@ -365,6 +365,34 @@ def test_pending_save_button_keeps_readable_primary_colors(window):
     assert max(abs(sample.red()-accent.red()),abs(sample.green()-accent.green()),abs(sample.blue()-accent.blue()))<24
 
 
+def test_pending_save_button_breathes_and_counts_changes(window,monkeypatch):
+    from PySide6.QtCore import QAbstractAnimation
+    from PySide6.QtWidgets import QGraphicsDropShadowEffect
+    from openmenu_gdemu_manager.ui.v2 import main_window as v2
+    monkeypatch.setattr(v2,'_animations_enabled',lambda:True)
+    window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
+    window.apply_filters();window._update_save_button_state()
+    button=window.save_changes_button
+    assert button.text()==catalog.tr('save_count',count=1)
+    assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect)
+    assert window._breath.state()==QAbstractAnimation.State.Running and not window.save_attention_timer.isActive()
+    window._breathe(1.0);effect=button.graphicsEffect()
+    assert effect.blurRadius()==36 and effect.color().name()==design_accent()
+    window.games[1].pending_add=False;window.games[1].save_status=''
+    window.apply_filters();window._update_save_button_state()
+    assert button.graphicsEffect() is None and window._breath.state()!=QAbstractAnimation.State.Running
+    # With Windows animations off the halo stays, without motion.
+    monkeypatch.setattr(v2,'_animations_enabled',lambda:False)
+    window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
+    window.apply_filters();window._update_save_button_state()
+    assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect) and window._breath.state()!=QAbstractAnimation.State.Running
+
+
+def design_accent():
+    from openmenu_gdemu_manager.ui.v2 import design
+    return design.QColor(design.colors()['accent']).name()
+
+
 def test_successful_save_with_deletion_rescans_without_asking_and_forgets_deleted_game(window,monkeypatch):
     scans=[]
     monkeypatch.setattr(legacy.MainWindow,'start_scan',lambda self:scans.append([g.slot for g in self.games]))

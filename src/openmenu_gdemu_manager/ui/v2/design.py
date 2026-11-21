@@ -102,7 +102,7 @@ def apply_theme(app, value="light"):
     QPushButton[role=danger] {{ color: {c['danger']}; background: {c['danger_soft']}; border-color: {c['danger']}; }}
     QPushButton:checked {{ background: {c['accent_soft']}; border-color: {c['accent']}; color: {c['accent']}; }}
     QPushButton[attention=true] {{ border: 2px solid {c['success']}; background: {c['success_soft']}; }}
-    QPushButton[role=primary][attention=true] {{ color: {c['paper']}; background: {c['accent']}; border: 2px solid {c['success']}; }}
+    QPushButton[role=primary][attention=true] {{ color: {c['paper']}; background: {c['accent']}; border: 1px solid {c['accent']}; }}
     QPushButton:disabled {{ background: {c['soft']}; color: {c['muted']}; border-color: {c['line']}; font-weight: 400; }}
     QLineEdit, QComboBox {{ background: {c['paper']}; border: 1px solid {c['line']}; border-radius: 5px; padding: 6px 8px; min-height: 26px; font-size: 12px; }}
     QSpinBox {{ background: {c['paper']}; border: 1px solid {c['line']}; border-radius: 5px; padding: 4px 8px; min-height: 26px; }}
