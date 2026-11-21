@@ -1,6 +1,6 @@
 """Real file/folder inspection with explicit, reversible import selection."""
 import logging
-from pathlib import Path
+from pathlib import Path,PureWindowsPath
 from ...app.logger import logged_operation
 from PySide6.QtCore import Qt,Signal,QObject,Slot
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFileDialog,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox
@@ -9,7 +9,7 @@ from ...dreamcast.rom_library import inspect_source,is_gdemu_menu_slot
 from ...dreamcast.image_integrity import validate_source
 from ...config.settings import supported_media_types
 from ..workers import start_worker
-from .design import Button,SelectionCheck,label
+from .design import Button,SelectionCheck,label,clearable_edit
 from .catalog import tr
 
 
@@ -62,6 +62,9 @@ class ImportGamesDialog(QDialog):
         sources=QHBoxLayout()
         self.files=Button('game_files',self.pick_files);self.folder=Button('game_folder',self.pick_folder)
         sources.addWidget(self.files);sources.addWidget(self.folder);sources.addStretch();root.addLayout(sources)
+        # A folder can hold hundreds of games: filtering only hides rows, it never changes the selection.
+        self.filter=clearable_edit('',tr('import_filter'));self.filter.setObjectName('import_filter')
+        self.filter.setPlaceholderText(tr('import_filter'));self.filter.textChanged.connect(self.apply_filter);root.addWidget(self.filter)
         self.all=SelectionCheck(tr('all'));self.all.clicked.connect(self.select_all);root.addWidget(self.all)
         self.table=QTableWidget(0,5)
         self.table.setHorizontalHeaderLabels(['',tr('game'),tr('source_path'),tr('format'),tr('status')])
@@ -124,6 +127,21 @@ class ImportGamesDialog(QDialog):
             status=tr('verify_source') if self.errors[row] else tr('possible_duplicate') if entry.existing_match else tr('source_cdi_checked') if entry.media_type=='CDI' else tr('source_valid')
             for col,value in ((1,entry.name),(2,entry.source_path),(3,entry.media_type),(4,status)):
                 item=QTableWidgetItem(value);item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable);item.setToolTip(self.errors[row] or (tr('source_cdi_scope') if entry.media_type=='CDI' and col==4 else value));self.table.setItem(row,col,item)
+        self.apply_filter()
+
+    def matches(self,row):
+        terms=self.filter.text().casefold().split()
+        if not terms:return True
+        entry=self.entries[row];source=PureWindowsPath(entry.source_path)
+        # Only the game's own folder and file: the shared library path would match every row.
+        haystack=' '.join((entry.name,source.parent.name,source.name,entry.media_type)).casefold()
+        return all(term in haystack for term in terms)
+
+    def visible_rows(self):
+        return [row for row in range(len(self.entries)) if not self.table.isRowHidden(row)]
+
+    def apply_filter(self,*_):
+        for row in range(len(self.entries)):self.table.setRowHidden(row,not self.matches(row))
         self.sync()
 
     def toggle(self,row,value):self.checked[row]=bool(value);self.sync()
@@ -139,7 +157,10 @@ class ImportGamesDialog(QDialog):
         count=sum(self.checked);targets=[i for i,error in enumerate(self.errors) if not error]
         self.all.setCheckState(Qt.CheckState.Checked if targets and all(self.checked[i] for i in targets) else Qt.CheckState.PartiallyChecked if count else Qt.CheckState.Unchecked)
         self.all.setEnabled(bool(targets) and not self._inspecting);self.prepare.setEnabled(bool(count) and not self._inspecting)
-        if not self._inspecting:self.feedback.setText(tr('detected_games',count=len(self.entries),selected=count))
+        if self._inspecting:return
+        visible=len(self.visible_rows())
+        # Hidden rows stay selected and are still added, so the total selection is always stated.
+        self.feedback.setText(tr('detected_games',count=len(self.entries),selected=count) if visible==len(self.entries) else tr('detected_games_filtered',visible=visible,count=len(self.entries),selected=count))
     def accept_selection(self):
         if self._inspecting or self.scan_thread is not None:return
         entries=[entry for i,entry in enumerate(self.entries) if self.checked[i] and not self.errors[i]]

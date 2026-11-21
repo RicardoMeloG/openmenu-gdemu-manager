@@ -49,7 +49,7 @@ Native file pickers remain OS-owned. See [screen coverage and visual review](V2_
 | SD / backup folder diagnosis, FAT32 and write permission | Original diagnostic worker and safeguards; destination summary and reason visible. |
 | Empty SD setup, menu installation and old-menu upgrade | Illustrated native V2 setup and adapted original upgrade, preserving backup decisions and OpenMenu assets. |
 | Read games, names, IDs, regions and menu inconsistencies | Original scanner/models; compact table and full game information dialog. |
-| GDI/CDI file or recursive folder import | Real source inspection in a worker; explicit selection, global Todos, duplicates initially unchecked, invalid GDI/CDI blocked with reason; unsupported CDI profiles distinguished. |
+| GDI/CDI file or recursive folder import | Real source inspection in a worker; explicit selection, global Todos, a text filter (name, game folder or format) that only hides rows and never changes the selection, duplicates initially unchecked, invalid GDI/CDI blocked with reason; unsupported CDI profiles distinguished. |
 | Add, remove, compact slots, write names and rebuild 01 | Original workers/slot transactions/rebuilder; changes remain pending until confirmed. |
 | Search providers, matching thresholds and caching | Original search services/settings; remote image preparation stays outside the UI thread. |
 | Automatic bulk proposals and batch approval | Original bulk workers/quality rules; proposals do not automatically become a manual Save. Explicit batch Save retains the original review/confirmation. |

@@ -720,6 +720,8 @@
     "v2.save_names": "Names: {count}",
     "v2.choose_source": "Choose a game file or a folder to find games.",
     "v2.detected_games": "{count} games detected · {selected} selected",
+    "v2.detected_games_filtered": "{visible} of {count} games shown · {selected} selected in total",
+    "v2.import_filter": "Filter by name, folder or format",
     "v2.verify_source": "Review source",
     "v2.exclude_source": "Remove from this list",
     "v2.keep_current": "The current cover is kept.",

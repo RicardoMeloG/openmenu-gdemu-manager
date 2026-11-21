@@ -228,6 +228,33 @@ def test_import_feedback_formats_actual_detected_and_selected_counts(window,lang
     dialog.reject();set_language('es')
 
 
+@pytest.mark.parametrize('language',['en','es'])
+def test_import_filter_hides_rows_without_changing_selection(window,language):
+    set_language(language)
+    dialog=ImportGamesDialog(window.settings,window.games,window)
+    dialog.received([(RomLibraryEntry('Shenmue (PAL) [Disc 1]','CDI',r'G:\roms\Shenmue (PAL) [Disc 1]\disc.cdi'),''),
+                     (RomLibraryEntry('Sonic Adventure','GDI',r'G:\roms\Sonic Adventure\disc.gdi'),''),
+                     (RomLibraryEntry('Shenmue II','CDI',r'G:\roms\Shenmue II\disc.cdi'),'missing track')])
+    before=list(dialog.checked);assert before==[True,True,False]
+    dialog.filter.setText('  SHENMUE cdi ')
+    assert [dialog.table.isRowHidden(row) for row in range(3)]==[False,True,False]
+    assert dialog.checked==before and dialog.prepare.isEnabled()
+    assert '{' not in dialog.feedback.text()
+    assert dialog.feedback.text()==catalog.tr('detected_games_filtered',visible=2,count=3,selected=2)
+    # The library folder shared by every game is not searched.
+    dialog.filter.setText('roms');assert dialog.visible_rows()==[]
+    dialog.filter.setText('sonic');dialog.row_clicked(1,1)
+    assert dialog.checked==[True,False,False]
+    dialog.filter.clear()
+    assert dialog.visible_rows()==[0,1,2]
+    assert dialog.feedback.text()==catalog.tr('detected_games',count=3,selected=1)
+    # A game hidden by the filter stays selected and is still added.
+    dialog.filter.setText('sonic')
+    emitted=[];dialog.selected.connect(emitted.extend);dialog.accept_selection()
+    assert [item.name for item in emitted]==['Shenmue (PAL) [Disc 1]']
+    set_language('es')
+
+
 def test_successful_save_with_deletion_rescans_without_asking_and_forgets_deleted_game(window,monkeypatch):
     scans=[]
     monkeypatch.setattr(legacy.MainWindow,'start_scan',lambda self:scans.append([g.slot for g in self.games]))

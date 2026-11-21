@@ -720,6 +720,8 @@
     "v2.save_names": "Nombres: {count}",
     "v2.choose_source": "Elige un archivo de juego o una carpeta para buscar juegos.",
     "v2.detected_games": "{count} juegos detectados · {selected} seleccionados",
+    "v2.detected_games_filtered": "{visible} de {count} juegos visibles · {selected} seleccionados en total",
+    "v2.import_filter": "Filtrar por nombre, carpeta o formato",
     "v2.verify_source": "Revisar origen",
     "v2.exclude_source": "Quitar de esta lista",
     "v2.keep_current": "La carátula actual se conserva.",
