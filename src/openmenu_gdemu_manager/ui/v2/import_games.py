@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt,Signal,QObject,Slot,QEvent
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFileDialog,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox,QLabel,QSizePolicy,QSpacerItem
 from ...core.models import RomLibraryEntry
-from ...dreamcast.rom_library import inspect_source,is_gdemu_menu_slot
+from ...dreamcast.rom_library import inspect_source,is_gdemu_menu_slot,same_product_disc
 from ...dreamcast.image_integrity import validate_source
 from ...config.settings import supported_media_types
 from ...dreamcast.sd_writer import MAX_USER_SLOT, source_size
@@ -257,7 +257,8 @@ class ImportGamesDialog(QDialog):
         for entry,error in records:
             if entry.source_path.casefold() in known:continue
             known.add(entry.source_path.casefold())
-            entry.existing_match=any(entry.name.casefold().strip()==g.name.casefold().strip() or bool(entry.product_id) and entry.product_id==g.product_id for g in self.games)
+            # Discs 2..n share the product ID of disc 1; only the same disc is a duplicate.
+            entry.existing_match=any(entry.name.casefold().strip()==g.name.casefold().strip() or same_product_disc(entry.product_id,entry.disc,g) for g in self.games)
             self.entries.append(entry);self.errors.append(error)
             self.checked.append(getattr(self,'_preselect',True) and not error and not entry.existing_match)
         self.render()

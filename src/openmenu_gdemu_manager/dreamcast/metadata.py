@@ -259,6 +259,27 @@ def _read_ip_bin_product(track_path: Path) -> str:
     return ""
 
 
+_DISC_FIELD = re.compile(r"ROM\s*(\d{1,2})\s*/\s*(\d{1,2})")
+
+
+def _read_ip_bin_disc(track_path: Path) -> str:
+    """Disc number as "n/m" from the device field (e.g. "GD-ROM2/3"), or ""."""
+    for header in _ip_bin_headers(track_path):
+        if len(header) >= 0x30:
+            match = _DISC_FIELD.search(_ip_bin_field(header, 0x20, 0x30))
+            if match and 1 <= int(match.group(1)) <= int(match.group(2)):
+                return f"{int(match.group(1))}/{int(match.group(2))}"
+    return ""
+
+
+def read_disc_number(folder: Path | None) -> str:
+    return _read_first_disc_header_field(folder, _read_ip_bin_disc)
+
+
+def read_disc_number_from_image(path: Path | None) -> str:
+    return _read_ip_bin_disc(Path(path)) if path is not None else ""
+
+
 def _read_ip_bin_internal_name(track_path: Path) -> str:
     for header in _ip_bin_headers(track_path):
         if len(header) >= 0x100:

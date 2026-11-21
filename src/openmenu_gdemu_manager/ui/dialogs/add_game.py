@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 from ... import APP_NAME
 from ...core.models import GameItem, RomLibraryEntry
 from ...config.settings import supported_media_types
-from ...dreamcast.rom_library import inspect_source, is_gdemu_menu_slot
+from ...dreamcast.rom_library import inspect_source, is_gdemu_menu_slot, same_product_disc
 from ...i18n import tr
 from ..widgets import action_button
 
@@ -214,11 +214,11 @@ class AddGameDialog(QDialog):
 
     def _already_present(self, entry: RomLibraryEntry) -> bool:
         normalized_name = entry.name.casefold().strip()
-        product_id = entry.product_id.upper().strip()
+        product_id = entry.product_id.strip()
         for game in self.existing_games:
             if normalized_name and game.name.casefold().strip() == normalized_name:
                 return True
-            if product_id and game.product_id.upper().strip() == product_id:
+            if same_product_disc(product_id, entry.disc, game):
                 return True
         return False
 

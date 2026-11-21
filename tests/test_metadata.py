@@ -317,6 +317,35 @@ def test_read_disc_product_id_reads_ip_bin_from_declared_gdi_track(tmp_path):
     assert read_disc_product_id(folder) == "T0000M"
 
 
+def test_read_disc_number_and_multidisc_games_are_not_duplicates(tmp_path):
+    from openmenu_gdemu_manager.dreamcast.metadata import read_disc_number
+    from openmenu_gdemu_manager.dreamcast.rom_library import inspect_source, same_product_disc
+
+    def disc(name, device):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "disc.gdi").write_text("1\n1 0 4 2048 track01.iso 0", encoding="ascii")
+        ip = bytearray(0x100)
+        ip[:16] = b"SEGA SEGAKATANA "
+        ip[0x20:0x30] = device
+        ip[0x40:0x50] = b"MK-51059  V1.003"
+        ip[0x80:0x88] = b"SHENMUE "
+        (folder / "track01.iso").write_bytes(bytes(ip))
+        return folder
+
+    second = disc("Shenmue (Disc 2)", b"4D9C GD-ROM2/3  ")
+    assert read_disc_number(second) == "2/3"
+    assert read_disc_number(disc("Unknown", b"                ")) == ""
+    entry = inspect_source(second)
+    # The bundled list's misread "SHENMUE" serial must not beat the disc header.
+    assert (entry.name, entry.product_id, entry.disc) == ("SHENMUE", "MK51059", "2/3")
+    on_sd = GameItem(2, "Shenmue (Disc 1)", product_id="MK51059", disc="1/3")
+    assert not same_product_disc(entry.product_id, entry.disc, on_sd)
+    assert same_product_disc(entry.product_id, entry.disc, GameItem(3, "Shenmue (Disc 2)", product_id="mk51059", disc="2/3"))
+    # A disc the SD does not record still counts as the same game.
+    assert same_product_disc(entry.product_id, entry.disc, GameItem(4, "Shenmue", product_id="MK51059"))
+
+
 def test_read_disc_internal_name_reads_ip_bin_software_title(tmp_path):
     folder = tmp_path / "073"
     folder.mkdir()
