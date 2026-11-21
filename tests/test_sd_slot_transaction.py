@@ -187,7 +187,7 @@ def test_save_that_does_not_fit_is_rejected_before_touching_the_sd(tmp_path, mon
     service = SdSlotTransactionService(root, "op-full")
     plan = service.build_plan(games)
     # Deleting B frees nothing: it goes to the internal trash on the same SD.
-    assert service.required_space(plan) == 2048 + tx.SPACE_MARGIN_BYTES
+    assert service.required_space(plan) == 2048 + tx.COVER_BYTES_PER_GAME + tx.SPACE_MARGIN_BYTES
 
     monkeypatch.setattr(tx, "free_space", lambda path: 1024)
     with pytest.raises(tx.InsufficientSpaceError) as error:

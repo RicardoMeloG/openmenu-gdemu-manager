@@ -5,13 +5,13 @@ from pathlib import Path,PureWindowsPath
 from ...app.logger import logged_operation
 from PySide6.QtCore import Qt,Signal,QObject,Slot,QEvent
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFileDialog,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox,QLabel,QSizePolicy
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFileDialog,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox,QLabel,QSizePolicy,QSpacerItem
 from ...core.models import RomLibraryEntry
 from ...dreamcast.rom_library import inspect_source,is_gdemu_menu_slot
 from ...dreamcast.image_integrity import validate_source
 from ...config.settings import supported_media_types
 from ...dreamcast.sd_writer import MAX_USER_SLOT, source_size
-from ...services.sd_slot_transaction import SPACE_MARGIN_BYTES, folder_size, format_bytes, free_space
+from ...services.sd_slot_transaction import COVER_BYTES_PER_GAME, SPACE_MARGIN_BYTES, folder_size, format_bytes, free_space
 from .design import repolish
 from ..workers import start_worker
 from ..widgets import BusyOverlay
@@ -100,6 +100,16 @@ class InspectWorker(QObject):
             return RomLibraryEntry(name=source.parent.name,media_type=source.suffix[1:].upper(),source_path=str(source)),str(exc)
 
 
+def warn(parent,heading,details):
+    """Warning with a bold heading and a readable width for a multi-line explanation."""
+    box=QMessageBox(QMessageBox.Icon.Warning,tr('add_title'),heading,QMessageBox.StandardButton.Ok,parent)
+    box.setInformativeText(details)
+    # QMessageBox sizes itself to the longest unbroken word; keep the figures on one line each.
+    layout=box.layout()
+    layout.addItem(QSpacerItem(460,0,QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Expanding),layout.rowCount(),0,1,layout.columnCount())
+    box.exec()
+
+
 class PathLabel(QLabel):
     """One-line source path, shortened in the middle so drive and game folder stay visible."""
     def __init__(self):
@@ -151,7 +161,7 @@ class ImportGamesDialog(QDialog):
         self.feedback=label(tr('choose_source'),muted=True,wrap=True);root.addWidget(self.feedback)
         # Size, free space and free positions are shown before preparing, so an
         # accidental whole-library selection is visible here, not at save time.
-        self.free_slots,self.available_bytes=self._capacity()
+        self._capacity()
         self.capacity=label('',muted=True,wrap=True);self.capacity.setObjectName('import_capacity');self.capacity.hide();root.addWidget(self.capacity)
         root.addWidget(label(tr('prepare_real_hint'),muted=True,wrap=True))
         bottom=QHBoxLayout();bottom.addStretch()
@@ -159,19 +169,29 @@ class ImportGamesDialog(QDialog):
         self.prepare.setEnabled(False);bottom.addWidget(self.cancel);bottom.addWidget(self.prepare);root.addLayout(bottom)
 
     def _capacity(self):
-        """Free positions and bytes still available for new games on the destination."""
+        """Free positions and space of the destination, measured once per dialog."""
         used={game.slot for game in self.games}
-        slots=sum(1 for slot in range(2,MAX_USER_SLOT+1) if slot not in used)
+        self.free_slots=sum(1 for slot in range(2,MAX_USER_SLOT+1) if slot not in used)
+        self.free_bytes=None;self.menu_bytes=0;self.pending_bytes=0
         root=getattr(self.parentWidget(),'root_path',None)
-        if root is None:return slots,None
+        self.destination=str(root) if root is not None else ''
+        if root is None:return
         root=Path(root)
         try:
-            free=free_space(root)
+            self.free_bytes=free_space(root)
+            # Room to rebuild menu 01 next to the current one, as the save does.
+            self.menu_bytes=folder_size(root/'01')+SPACE_MARGIN_BYTES
             # Games already prepared in this session will use part of that space.
-            pending=sum(source_size(Path(game.source_path)) for game in self.games if game.pending_add and game.source_path)
-            return slots,free-pending-folder_size(root/'01')-SPACE_MARGIN_BYTES
+            self.pending_bytes=sum(source_size(Path(game.source_path)) for game in self.games if game.pending_add and game.source_path)
         except OSError:
-            return slots,None
+            self.free_bytes=None
+
+    def margin_bytes(self):
+        """Covers for the checked games plus the menu rebuild."""
+        return sum(self.checked)*COVER_BYTES_PER_GAME+self.menu_bytes
+
+    def needed_bytes(self):
+        return self.selected_bytes()+self.margin_bytes()+self.pending_bytes
 
     def pick_files(self):
         global _last_folder
@@ -294,10 +314,14 @@ class ImportGamesDialog(QDialog):
         count=sum(self.checked);targets=self.select_targets()
         marked=sum(self.checked[i] for i in targets)
         self.all.setCheckState(Qt.CheckState.Checked if targets and marked==len(targets) else Qt.CheckState.PartiallyChecked if marked else Qt.CheckState.Unchecked)
-        caption=tr('all_visible',count=len(self.visible_rows())) if self.filtering() else tr('all')
+        hidden=self.hidden_checked()
+        # Say when checked games are out of sight, or "All shown (2)" hides why the total is larger.
+        caption=(tr('all_visible_hidden',count=len(self.visible_rows()),hidden=hidden) if hidden else tr('all_visible',count=len(self.visible_rows()))) if self.filtering() else tr('all')
         if self.all.text()!=caption:self.all.setText(caption);self.all.setAccessibleName(caption);self.all.updateGeometry()
         problem=self.capacity_problem()
-        self.all.setEnabled(bool(targets) and not self._inspecting);self.prepare.setEnabled(bool(count) and not self._inspecting and not problem)
+        # Prepare stays available: a selection that does not fit explains itself
+        # when pressed instead of leaving a silently disabled button.
+        self.all.setEnabled(bool(targets) and not self._inspecting);self.prepare.setEnabled(bool(count) and not self._inspecting)
         if self._inspecting:return
         visible=len(self.visible_rows())
         # Hidden rows stay selected and are still added, so the total selection is always stated.
@@ -305,18 +329,20 @@ class ImportGamesDialog(QDialog):
         self.show_capacity(problem)
     def selected_bytes(self):
         return sum(entry.size_bytes for entry,checked in zip(self.entries,self.checked) if checked)
+    def hidden_checked(self):
+        return sum(1 for row,checked in enumerate(self.checked) if checked and self.table.isRowHidden(row))
     def capacity_problem(self):
         count=sum(self.checked)
         if count>self.free_slots:return tr('selection_too_many',count=count,slots=self.free_slots)
-        size=self.selected_bytes()
-        if self.available_bytes is not None and size>self.available_bytes:
-            return tr('selection_too_big',missing=format_bytes(size-max(0,self.available_bytes)))
+        if self.free_bytes is not None and count and self.needed_bytes()>self.free_bytes:
+            return tr('selection_too_big',missing=format_bytes(self.needed_bytes()-self.free_bytes))
         return ''
     def show_capacity(self,problem):
         self.capacity.setVisible(bool(self.entries))
         size=format_bytes(self.selected_bytes())
-        summary=tr('selection_capacity',size=size,free=format_bytes(max(0,self.available_bytes)),slots=self.free_slots) if self.available_bytes is not None else tr('selection_capacity_slots',size=size,slots=self.free_slots)
-        hidden=sum(1 for row,checked in enumerate(self.checked) if checked and self.table.isRowHidden(row))
+        summary=(tr('selection_capacity',size=size,margin=format_bytes(self.margin_bytes()),free=format_bytes(self.free_bytes),drive=self.destination,slots=self.free_slots)
+                 if self.free_bytes is not None else tr('selection_capacity_slots',size=size,slots=self.free_slots))
+        hidden=self.hidden_checked()
         # A problem caused by games the filter hides must say so, or the visible
         # selection looks small enough to fit.
         if problem and hidden:problem+='\n'+tr('selection_hidden',count=hidden)
@@ -324,8 +350,25 @@ class ImportGamesDialog(QDialog):
         tone='warning' if problem else None
         if self.capacity.property('tone')!=tone:
             self.capacity.setProperty('tone',tone);self.capacity.setProperty('muted',not problem);repolish(self.capacity)
+    def capacity_details(self):
+        """Full explanation shown when Prepare is pressed with a selection that does not fit."""
+        count=sum(self.checked);lines=[]
+        if count>self.free_slots:
+            lines.append(tr('selection_too_many',count=count,slots=self.free_slots))
+        else:
+            lines.append(tr('capacity_games',count=count,size=format_bytes(self.selected_bytes())))
+            lines.append(tr('capacity_margin',size=format_bytes(self.margin_bytes())))
+            if self.pending_bytes:lines.append(tr('capacity_pending',size=format_bytes(self.pending_bytes)))
+            lines.append(tr('capacity_needed',size=format_bytes(self.needed_bytes())))
+            lines.append(tr('capacity_free',drive=self.destination,size=format_bytes(self.free_bytes)))
+            lines.append('');lines.append(tr('capacity_missing',size=format_bytes(self.needed_bytes()-self.free_bytes)))
+        hidden=self.hidden_checked()
+        if hidden:lines.append(tr('selection_hidden',count=hidden))
+        return '\n'.join(lines)
     def accept_selection(self):
-        if self._inspecting or self.scan_thread is not None or self.capacity_problem():return
+        if self._inspecting or self.scan_thread is not None:return
+        if self.capacity_problem():
+            warn(self,tr('capacity_title'),self.capacity_details());return
         entries=[entry for i,entry in enumerate(self.entries) if self.checked[i] and not self.errors[i]]
         if entries:self.selected.emit(entries);self.accept()
     def reject(self):

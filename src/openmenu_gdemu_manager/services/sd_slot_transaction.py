@@ -23,6 +23,9 @@ ProgressCallback = Callable[[int, int, str, str], None]
 
 # Room for the menu rebuild (01.new is copied next to 01) and file-system overhead.
 SPACE_MARGIN_BYTES = 64 * 1024 * 1024
+# Each new game adds its cover to menu 01 (a 256 x 256 PVR in BOX.DAT plus its
+# icon); this rounds that up generously.
+COVER_BYTES_PER_GAME = 256 * 1024
 
 
 class InsufficientSpaceError(OSError):
@@ -41,11 +44,12 @@ def folder_size(path: Path) -> int:
 
 
 def format_bytes(value: int) -> str:
+    # A no-break space keeps a figure and its unit on the same line.
     if value <= 0:
-        return "0 MB"
+        return "0 MB"
     if value >= 1024 ** 3:
-        return f"{value / 1024 ** 3:.1f} GB"
-    return f"{max(1, round(value / 1024 ** 2))} MB"
+        return f"{value / 1024 ** 3:.1f} GB"
+    return f"{max(1, round(value / 1024 ** 2))} MB"
 
 
 @dataclass(frozen=True)
@@ -341,7 +345,8 @@ class SdSlotTransactionService:
         if not plan.additions:
             return 0
         games = sum(source_size(Path(entry.source_path)) for entry in plan.additions)
-        return games + folder_size(self.root_path / "01") + SPACE_MARGIN_BYTES
+        covers = len(plan.additions) * COVER_BYTES_PER_GAME
+        return games + covers + folder_size(self.root_path / "01") + SPACE_MARGIN_BYTES
 
     def ensure_space_for(self, plan: SlotTransactionPlan) -> None:
         needed = self.required_space(plan)

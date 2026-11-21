@@ -265,7 +265,8 @@ def test_import_all_acts_on_visible_games_while_filtering(window,language):
                      (RomLibraryEntry('Thunder Force','GDI',r'G:\roms\Thunder Force\disc.gdi'),'missing track')])
     assert dialog.all.text()==catalog.tr('all') and dialog.checked==[True,True,True,False]
     dialog.filter.setText('thunder')
-    assert dialog.all.text()==catalog.tr('all_visible',count=3) and '{' not in dialog.all.text()
+    # Sonic stays checked out of sight, and the checkbox says so.
+    assert dialog.all.text()==catalog.tr('all_visible_hidden',count=3,hidden=1) and '{' not in dialog.all.text()
     assert dialog.all.checkState()==Qt.CheckState.Checked
     dialog.select_all()
     # Only the visible, valid games change; the hidden selection survives.
@@ -275,7 +276,8 @@ def test_import_all_acts_on_visible_games_while_filtering(window,language):
     dialog.filter.clear()
     assert dialog.all.text()==catalog.tr('all')
     dialog.select_all();dialog.select_all();assert dialog.checked==[False,False,False,False]
-    dialog.filter.setText('thunder');dialog.select_all()
+    dialog.filter.setText('thunder');assert dialog.all.text()==catalog.tr('all_visible',count=3)
+    dialog.select_all()
     emitted=[];dialog.selected.connect(emitted.extend);dialog.accept_selection()
     assert [entry.name for entry in emitted]==['Hydro Thunder','4 Wheel Thunder']
     set_language('es')
@@ -354,7 +356,10 @@ def test_import_folder_games_start_unchecked_and_hidden_checks_are_explained(win
     assert dialog.checked==[False,False,False,True] and dialog.prepare.isEnabled()
     dialog.filter.clear();dialog.select_all();dialog.filter.setText('hydro')
     text=dialog.capacity.text()
-    assert not dialog.prepare.isEnabled() and catalog.tr('selection_hidden',count=3) in text and '{' not in text
+    assert catalog.tr('selection_hidden',count=3) in text and '{' not in text
+    # The checkbox says why the total is larger than what is visible.
+    assert dialog.all.text()==catalog.tr('all_visible_hidden',count=1,hidden=3) and '{' not in dialog.all.text()
+    assert dialog.prepare.isEnabled()
     dialog.reject()
 
 
@@ -374,31 +379,49 @@ def test_import_folder_picker_starts_in_the_last_folder(window,monkeypatch,tmp_p
     assert asked==['',str(tmp_path)]
 
 
-def test_import_shows_size_and_blocks_a_selection_that_does_not_fit(window,monkeypatch):
+def test_import_explains_a_selection_that_does_not_fit_when_preparing(window,monkeypatch):
     from openmenu_gdemu_manager.ui.v2 import import_games
     gb=1024**3
-    monkeypatch.setattr(import_games,'free_space',lambda root:import_games.SPACE_MARGIN_BYTES+3*gb)
+    monkeypatch.setattr(import_games,'free_space',lambda root:4*gb)
+    warnings=[];monkeypatch.setattr(import_games,'warn',lambda parent,title,text:warnings.append((title,text)))
     dialog=ImportGamesDialog(window.settings,window.games,window)
-    assert dialog.free_slots==123 and dialog.available_bytes==3*gb and dialog.capacity.isHidden()
+    assert dialog.free_slots==123 and dialog.free_bytes==4*gb and dialog.capacity.isHidden()
     dialog.received([(RomLibraryEntry('A','CDI','a.cdi',size_bytes=2*gb),''),(RomLibraryEntry('B','CDI','b.cdi',size_bytes=2*gb),''),(RomLibraryEntry('C','CDI','c.cdi',size_bytes=gb),'')])
+    # Margin: one cover per checked game plus room to rebuild menu 01.
+    assert dialog.margin_bytes()==3*import_games.COVER_BYTES_PER_GAME+import_games.SPACE_MARGIN_BYTES
+    margin=import_games.format_bytes(dialog.margin_bytes());missing=import_games.format_bytes(dialog.needed_bytes()-4*gb)
+    five,four=import_games.format_bytes(5*gb),import_games.format_bytes(4*gb)
+    assert five=='5.0 GB'
     text=dialog.capacity.text()
-    assert not dialog.prepare.isEnabled() and catalog.tr('selection_too_big',missing='2.0 GB') in text
-    assert catalog.tr('selection_capacity',size='5.0 GB',free='3.0 GB',slots=123) in text and '{' not in text
-    emitted=[];dialog.selected.connect(emitted.extend);dialog.accept_selection();assert not emitted
+    assert catalog.tr('selection_capacity',size=five,margin=margin,free=four,drive=str(window.root_path),slots=123) in text
+    assert catalog.tr('selection_too_big',missing=missing) in text and '{' not in text
+    # Prepare stays enabled and explains itself instead of doing nothing.
+    assert dialog.prepare.isEnabled()
+    emitted=[];dialog.selected.connect(emitted.extend);dialog.accept_selection()
+    assert not emitted and len(warnings)==1
+    title,details=warnings[0]
+    assert title==catalog.tr('capacity_title')
+    for line in (catalog.tr('capacity_games',count=3,size=five),catalog.tr('capacity_margin',size=margin),
+                 catalog.tr('capacity_needed',size=import_games.format_bytes(dialog.needed_bytes())),
+                 catalog.tr('capacity_free',drive=str(window.root_path),size=four),catalog.tr('capacity_missing',size=missing)):
+        assert line in details
+    assert '{' not in details
     dialog.toggle(0,False)
-    assert dialog.prepare.isEnabled() and dialog.capacity.text()==catalog.tr('selection_capacity',size='3.0 GB',free='3.0 GB',slots=123)
-    dialog.reject()
+    assert dialog.capacity_problem()=='' and catalog.tr('selection_too_big',missing=missing) not in dialog.capacity.text()
+    dialog.accept_selection();assert [e.name for e in emitted]==['B','C'] and len(warnings)==1
 
 
-def test_import_blocks_more_games_than_free_positions(window,monkeypatch):
+def test_import_explains_more_games_than_free_positions(window,monkeypatch):
     from openmenu_gdemu_manager.ui.v2 import import_games
     monkeypatch.setattr(import_games,'free_space',lambda root:10*1024**4)
+    warnings=[];monkeypatch.setattr(import_games,'warn',lambda parent,title,text:warnings.append(text))
     games=[GameItem(slot,f'G{slot}') for slot in range(2,126)]
     dialog=ImportGamesDialog(window.settings,games,window)
     assert dialog.free_slots==2
     dialog.received([(RomLibraryEntry(name,'CDI',f'{name}.cdi',size_bytes=1),'') for name in ('A','B','C')])
-    assert not dialog.prepare.isEnabled() and catalog.tr('selection_too_many',count=3,slots=2) in dialog.capacity.text()
-    dialog.toggle(2,False);assert dialog.prepare.isEnabled()
+    assert dialog.prepare.isEnabled() and catalog.tr('selection_too_many',count=3,slots=2) in dialog.capacity.text()
+    dialog.accept_selection();assert catalog.tr('selection_too_many',count=3,slots=2) in warnings[0]
+    dialog.toggle(2,False);assert dialog.capacity_problem()==''
     dialog.reject()
 
 
