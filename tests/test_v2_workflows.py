@@ -309,6 +309,29 @@ def test_import_reuses_inspected_games_until_their_files_change(monkeypatch,tmp_
     import_games.clear_inspection_cache()
 
 
+@pytest.mark.parametrize('language',['es','en'])
+def test_import_shows_where_the_listed_games_come_from(window,monkeypatch,tmp_path,language):
+    from openmenu_gdemu_manager.ui.v2 import import_games
+    set_language(language)
+    monkeypatch.setattr(import_games.InspectWorker,'run',lambda worker:worker.finished.emit([]))
+    dialog=ImportGamesDialog(window.settings,window.games,window);dialog.resize(960,620);dialog.show()
+    assert dialog.source_label.full_text==''
+    first=tmp_path/'Sega - Dreamcast'/'Juegos';first.mkdir(parents=True)
+    second=tmp_path/'Otra carpeta';second.mkdir()
+    for folder in (first,first,second):
+        dialog.inspect_paths([str(folder)])
+        for _ in range(100):
+            QTest.qWait(5)
+            if dialog.scan_thread is None:break
+    assert dialog.source_label.full_text==catalog.tr('source_chosen_many',path=str(first),count=1) and '{' not in dialog.source_label.full_text
+    assert dialog.source_label.toolTip()==f'{first}\n{second}'
+    # A long path is shortened in the middle and keeps both ends.
+    dialog.source_label.resize(120,dialog.source_label.height());QTest.qWait(10)
+    shown=dialog.source_label.text()
+    assert '…' in shown and len(shown)<len(dialog.source_label.full_text) and shown.endswith(dialog.source_label.full_text[-3:])
+    dialog.reject();set_language('es')
+
+
 def test_import_folder_picker_starts_in_the_last_folder(window,monkeypatch,tmp_path):
     from openmenu_gdemu_manager.ui.v2 import import_games
     monkeypatch.setattr(import_games,'_last_folder','')

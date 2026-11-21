@@ -5,7 +5,7 @@ from pathlib import Path,PureWindowsPath
 from ...app.logger import logged_operation
 from PySide6.QtCore import Qt,Signal,QObject,Slot,QEvent
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFileDialog,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFileDialog,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox,QLabel,QSizePolicy
 from ...core.models import RomLibraryEntry
 from ...dreamcast.rom_library import inspect_source,is_gdemu_menu_slot
 from ...dreamcast.image_integrity import validate_source
@@ -100,6 +100,21 @@ class InspectWorker(QObject):
             return RomLibraryEntry(name=source.parent.name,media_type=source.suffix[1:].upper(),source_path=str(source)),str(exc)
 
 
+class PathLabel(QLabel):
+    """One-line source path, shortened in the middle so drive and game folder stay visible."""
+    def __init__(self):
+        super().__init__('');self.full_text=''
+        self.setProperty('muted',True)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    def set_path(self,text,tooltip):
+        self.full_text=text;self.setToolTip(tooltip);self.setAccessibleName(text);self._elide()
+    def resizeEvent(self,event):
+        super().resizeEvent(event);self._elide()
+    def _elide(self):
+        self.setText(self.fontMetrics().elidedText(self.full_text,Qt.TextElideMode.ElideMiddle,max(40,self.width()-4)))
+
+
 class ImportGamesDialog(QDialog):
     selected=Signal(object)
     def __init__(self,settings,games,parent=None):
@@ -114,7 +129,10 @@ class ImportGamesDialog(QDialog):
         root.addWidget(label(tr('choose_source'),muted=True,wrap=True))
         sources=QHBoxLayout()
         self.files=Button('game_files',self.pick_files);self.folder=Button('game_folder',self.pick_folder)
-        sources.addWidget(self.files);sources.addWidget(self.folder);sources.addStretch();root.addLayout(sources)
+        sources.addWidget(self.files);sources.addWidget(self.folder)
+        # Where the listed games come from, next to the buttons that chose it.
+        self.sources=[];self.source_label=PathLabel();self.source_label.setObjectName('import_source')
+        sources.addWidget(self.source_label,1);root.addLayout(sources)
         # A folder can hold hundreds of games: filtering only hides rows, it never changes the selection.
         self.filter=clearable_edit('',tr('import_filter'));self.filter.setObjectName('import_filter')
         self.filter.setPlaceholderText(tr('import_filter'));self.filter.textChanged.connect(self.apply_filter);root.addWidget(self.filter)
@@ -170,8 +188,18 @@ class ImportGamesDialog(QDialog):
             _last_folder=folder
             self.inspect_paths([folder])
 
+    def show_sources(self,paths):
+        for path in paths:
+            path=str(Path(path))
+            if path.casefold() not in {known.casefold() for known in self.sources}:self.sources.append(path)
+        if not self.sources:return
+        first=self.sources[0];more=len(self.sources)-1
+        self.source_label.set_path(tr('source_chosen',path=first) if not more else tr('source_chosen_many',path=first,count=more),
+                                   '\n'.join(self.sources))
+
     def inspect_paths(self,paths):
         if self.scan_thread is not None:return
+        self.show_sources(paths)
         self._inspecting=True
         self._inspection_error=''
         self.files.setEnabled(False);self.folder.setEnabled(False);self.prepare.setEnabled(False)
