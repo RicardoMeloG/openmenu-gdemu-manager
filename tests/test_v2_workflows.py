@@ -171,6 +171,30 @@ def test_drafts_do_not_touch_sd_and_viewer_uses_original_normalizer(window):
     ws.reject()
 
 
+def test_viewer_actual_size_is_one_image_pixel_per_screen_pixel(window,monkeypatch):
+    from openmenu_gdemu_manager.ui.v2 import covers
+    # Windows display scaling: 100 % must not stretch the cover by the scale factor.
+    monkeypatch.setattr(covers.ImageView,'pixel_ratio',lambda self:2.5)
+    game=window.games[1];store=window.cover_host.store;view=store.view(game)
+    key=store.add_candidate(view,Candidate('local','Red',95,local_path='generated'),Image.new('RGB',(512,512),'red'))
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False)
+    ws.resize(1000,760);ws.show();ws.inspect(key);QTest.qWait(20)
+    viewer=ws.stack.currentWidget();image=viewer.views[0]
+    viewer.set_zoom(100)
+    assert image.transform().m11()==pytest.approx(1/2.5) and round(image.effective_percent())==100
+    assert viewer.zoom_label.text()=='100 %'
+    viewer.set_zoom('fit');fitted=image.effective_percent()
+    assert image.transform().m11()!=pytest.approx(1/2.5)
+    assert viewer.zoom_label.text()==catalog.tr('full_view_percent',percent=round(fitted))
+    viewer.step_zoom(1)
+    assert viewer.zoom!='fit' and viewer.zoom>fitted and viewer.zoom%covers.ZOOM_STEP==0
+    viewer.set_zoom('fit');viewer.step_zoom(-1)
+    assert viewer.zoom!='fit' and viewer.zoom<fitted
+    viewer.set_zoom(covers.ZOOM_MAX);viewer.step_zoom(1);assert viewer.zoom==covers.ZOOM_MAX
+    viewer.set_zoom(covers.ZOOM_MIN);viewer.step_zoom(-1);assert viewer.zoom==covers.ZOOM_MIN
+    ws.reject()
+
+
 def test_readonly_blocks_mutations_and_stale_search_ignored(window):
     game=window.games[1];store=window.cover_host.store;view=store.view(game);window.write_allowed=False
     key=store.add_candidate(view,Candidate('test','Test',90),Image.new('RGB',(512,512),'red'))

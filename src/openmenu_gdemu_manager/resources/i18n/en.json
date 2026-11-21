@@ -601,6 +601,7 @@
     "v2.mark_compare": "Mark for comparison",
     "v2.inspect_hint": "Inspecting does not change your choice. Visual quality depends on your comparison.",
     "v2.full_view": "Fit image",
+    "v2.full_view_percent": "Fit image · {percent} %",
     "v2.source_hint": "Original image; no edits.",
     "v2.normalized_hint": "OpenMenu 256 × 256 view; project normalizer.",
     "v2.resolution_sufficient": "Sufficient resolution · quality available in Image information",

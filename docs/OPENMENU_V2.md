@@ -12,7 +12,10 @@ compact rows, small uncropped thumbnails, disc ID, region and pending states.
 The cover workspace helps fans find a design, inspect its scan and choose it.
 It starts with six alternatives per page, across every available region. Click
 an image to enlarge it; compare two distinct images side by side or by alternation,
-with zoom and synchronized pan. The OpenMenu preview uses the project's actual
+with zoom and synchronized pan. `100 %` draws one image pixel per physical
+screen pixel whatever the Windows display scaling, and the fitted view states
+its real percentage, so the two are not confused on scaled displays. The
+OpenMenu preview uses the project's actual
 Pillow normalizer. The original scan is not color-corrected or cropped.
 
 Shared tokens, action semantics, Tabler SVG icons and Qt atoms live in

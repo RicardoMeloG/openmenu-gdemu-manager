@@ -601,6 +601,7 @@
     "v2.mark_compare": "Marcar para comparar",
     "v2.inspect_hint": "Examinar no cambia la elección. La calidad visual depende de tu comparación.",
     "v2.full_view": "Vista completa",
+    "v2.full_view_percent": "Vista completa · {percent} %",
     "v2.source_hint": "Imagen original; sin retoques.",
     "v2.normalized_hint": "Vista OpenMenu 256 × 256; normalizador del proyecto.",
     "v2.resolution_sufficient": "Resolución suficiente · calidad disponible en Datos de imagen",
