@@ -501,6 +501,16 @@ def test_bulk_proposal_is_previewed_in_the_collection_even_for_new_games(window)
     assert cover_center(4).blue()<200 or cover_center(4).red()>60
 
 
+def test_new_bulk_proposal_replaces_the_cached_thumbnail(window):
+    candidate=Candidate('test','Proposal',99);model=window.games_model
+    game=next(g for g in window.games if g.slot==3)
+    window.bulk_proposals={3:BulkProposal(3,candidate,Image.new('RGB',(64,64),(0,0,255)),status='revision')};window.apply_filters()
+    first=model._cover_pixmap(game,window.bulk_proposals[3]).toImage().pixelColor(30,30)
+    window.receive_bulk_proposal(BulkProposal(3,candidate,Image.new('RGB',(64,64),(255,0,0)),status='revision'))
+    second=model._cover_pixmap(game,window.bulk_proposals[3]).toImage().pixelColor(30,30)
+    assert first.blue()>200 and second.red()>200 and second.blue()<60
+
+
 def test_animations_setting_reads_a_full_windows_bool():
     from openmenu_gdemu_manager.ui.v2 import main_window as v2
     assert isinstance(v2._animations_enabled(),bool)

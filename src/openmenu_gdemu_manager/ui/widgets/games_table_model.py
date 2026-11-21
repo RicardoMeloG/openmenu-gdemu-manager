@@ -42,6 +42,8 @@ class GamesTableModel(QAbstractTableModel):
         self._proposals: dict[int, BulkProposal] = {}
         self._bulk_mode: bool = False
         self._pixmap_cache: dict[str, QPixmap] = {}
+        # Image each cached proposal thumbnail was drawn from, compared by identity.
+        self._proposal_sources: dict[int, object] = {}
 
     def rowCount(self, parent=QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._games)
@@ -127,6 +129,7 @@ class GamesTableModel(QAbstractTableModel):
 
     def clear_cache(self):
         self._pixmap_cache.clear()
+        self._proposal_sources.clear()
 
     def _display(self, game: GameItem, col: int, proposal) -> str | None:
         if col in (self.C_CHECK, self.C_COVER, self.C_ACTIONS):
@@ -251,6 +254,10 @@ class GamesTableModel(QAbstractTableModel):
     def _cover_pixmap(self, game: GameItem, proposal) -> QPixmap | None:
         if proposal and proposal.image is not None and proposal.status in {"seleccionada", "revision"}:
             key = f"proposal_{game.slot}"
+            # A new search replaces the proposal object; drop the old thumbnail.
+            if self._proposal_sources.get(game.slot) is not proposal.image:
+                self._pixmap_cache.pop(key, None)
+                self._proposal_sources[game.slot] = proposal.image
             if key not in self._pixmap_cache:
                 try:
                     self._pixmap_cache[key] = pil_to_pixmap(proposal.image, (92, 92))
