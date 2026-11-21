@@ -345,6 +345,40 @@ def test_read_disc_metadata_searches_cdi_for_embedded_ip_bin(tmp_path):
     assert read_disc_internal_name(folder) == "SKIES OF ARCADIA DISC2"
 
 
+def test_cdi_product_id_comes_from_boot_track_not_first_false_magic(tmp_path):
+    from cdi_fixtures import classic_cdi
+    folder = tmp_path / "007"
+    folder.mkdir()
+    path = classic_cdi(folder / "disc.cdi", sessions=[
+        [{"mode": 0, "read_mode": 2, "sectors": 4, "indices": (1, 3)}],
+        [{"mode": 2, "read_mode": 1, "sectors": 4, "indices": (2, 2)}],
+    ])
+    data = bytearray(path.read_bytes())
+    # Shenmue PAL: the magic appears first in session 1 with null fields.
+    false = bytearray(b" " * 0x100)
+    false[:15] = b"SEGA SEGAKATANA"
+    false[0x40:0x4A] = b"\x00" * 8 + b"@\x83"
+    false[0x80:0x100] = b"\x00" * 0x80
+    data[100:100 + 0x100] = false
+    real = bytearray(b" " * 0x100)
+    real[:16] = b"SEGA SEGAKATANA "
+    real[0x40:0x50] = b"MK-5105950V1.001"
+    real[0x80:0x87] = b"SHENMUE"
+    boot = 4 * 2352 + 2 * 2336 + 8
+    data[boot:boot + 0x100] = real
+    path.write_bytes(bytes(data))
+
+    assert read_disc_product_id(folder) == "MK5105950"
+    assert read_disc_internal_name(folder) == "SHENMUE"
+
+
+def test_menu_product_id_replaces_unreadable_menu_serial():
+    garbage = "\x00" * 8 + "@"
+    assert menu_product_id_for_slot(7, garbage, "MK5105950") == "MK5105950"
+    assert menu_product_id_for_slot(7, garbage, "") == "SLOT007"
+    assert "SLOT007" in artwork_serial_candidates(7, garbage, "MK5105950", "MK5105950")
+
+
 def test_menu_product_id_prefers_real_disc_serial_and_repairs_synthetic_slot_id():
     assert menu_product_id_for_slot(102, "SLOT106", "T0000M") == "T0000M"
     assert menu_product_id_for_slot(102, "SLOT106", "") == "SLOT102"
