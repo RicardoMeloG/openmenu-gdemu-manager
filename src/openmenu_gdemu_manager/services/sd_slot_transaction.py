@@ -21,6 +21,32 @@ from ..i18n import tr
 
 ProgressCallback = Callable[[int, int, str, str], None]
 
+# Room for the menu rebuild (01.new is copied next to 01) and file-system overhead.
+SPACE_MARGIN_BYTES = 64 * 1024 * 1024
+
+
+class InsufficientSpaceError(OSError):
+    """Raised before any SD change when the new games cannot fit."""
+
+
+def free_space(path: Path) -> int:
+    return shutil.disk_usage(str(path)).free
+
+
+def folder_size(path: Path) -> int:
+    path = Path(path)
+    if not path.exists():
+        return 0
+    return path.stat().st_size if path.is_file() else source_size(path)
+
+
+def format_bytes(value: int) -> str:
+    if value <= 0:
+        return "0 MB"
+    if value >= 1024 ** 3:
+        return f"{value / 1024 ** 3:.1f} GB"
+    return f"{max(1, round(value / 1024 ** 2))} MB"
+
 
 @dataclass(frozen=True)
 class SlotPlanEntry:
@@ -185,6 +211,7 @@ class SdSlotTransactionService:
         if self.source_validator:
             for entry in plan.additions:
                 self.source_validator(Path(entry.source_path))
+        self.ensure_space_for(plan)
         self.transaction_dir.mkdir(parents=True, exist_ok=True)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.add_dir.mkdir(parents=True, exist_ok=True)
@@ -307,6 +334,36 @@ class SdSlotTransactionService:
             self._write_state("failed", error=str(exc), deleted=deleted, moved=moved,
                               added=added, created_slots=sorted(created_slots))
             raise
+
+    def required_space(self, plan: SlotTransactionPlan) -> int:
+        """Bytes the save adds to the SD. Moves are renames; deletions go to
+        the internal trash on the same SD, so they free nothing."""
+        if not plan.additions:
+            return 0
+        games = sum(source_size(Path(entry.source_path)) for entry in plan.additions)
+        return games + folder_size(self.root_path / "01") + SPACE_MARGIN_BYTES
+
+    def ensure_space_for(self, plan: SlotTransactionPlan) -> None:
+        needed = self.required_space(plan)
+        if not needed:
+            return
+        try:
+            free = free_space(self.root_path)
+        except OSError:
+            # Unknown free space must not block a save; the copy itself still fails safely.
+            return
+        if needed <= free:
+            return
+        message = tr(
+            "slot_space.insufficient",
+            needed=format_bytes(needed),
+            free=format_bytes(free),
+            missing=format_bytes(needed - free),
+        )
+        trash = folder_size(registry_dir(self.root_path) / "trash")
+        if trash:
+            message += "\n\n" + tr("slot_space.trash_hint", trash=format_bytes(trash))
+        raise InsufficientSpaceError(message)
 
     def complete_from_state(self) -> None:
         self._validate_path_containment()

@@ -172,6 +172,45 @@ def test_delete_and_add_in_one_save_produces_a_recoverable_plan(tmp_path):
     assert (root / "04" / "disc.cdi").exists() and (root / "03" / "c.gdi").exists()
 
 
+def test_save_that_does_not_fit_is_rejected_before_touching_the_sd(tmp_path, monkeypatch):
+    import pytest
+    from openmenu_gdemu_manager.services import sd_slot_transaction as tx
+    root = tmp_path / "sd"
+    games = _three_games(root)
+    trash = root / "_openmenu_gdemu_manager" / "trash" / "old-op" / "09"
+    trash.mkdir(parents=True)
+    (trash / "disc.cdi").write_bytes(b"x" * 4096)
+    source = tmp_path / "new_game"
+    source.mkdir()
+    (source / "disc.cdi").write_bytes(b"x" * 2048)
+    games.append(GameItem(slot=5, name="D", source_path=source, pending_add=True))
+    service = SdSlotTransactionService(root, "op-full")
+    plan = service.build_plan(games)
+    # Deleting B frees nothing: it goes to the internal trash on the same SD.
+    assert service.required_space(plan) == 2048 + tx.SPACE_MARGIN_BYTES
+
+    monkeypatch.setattr(tx, "free_space", lambda path: 1024)
+    with pytest.raises(tx.InsufficientSpaceError) as error:
+        service.execute(plan, games)
+    assert "{" not in str(error.value) and tx.format_bytes(4096) in str(error.value)
+    assert not service.transaction_dir.exists() and incomplete_slot_transactions(root) == []
+    assert (root / "03" / "b.gdi").exists() and (root / "04" / "c.gdi").exists()
+
+    monkeypatch.setattr(tx, "free_space", lambda path: 10 * 1024 ** 3)
+    service.execute(plan, games)
+    assert (root / "04" / "disc.cdi").exists()
+
+
+def test_save_without_additions_needs_no_free_space(tmp_path, monkeypatch):
+    from openmenu_gdemu_manager.services import sd_slot_transaction as tx
+    root = tmp_path / "sd"
+    games = _three_games(root)
+    monkeypatch.setattr(tx, "free_space", lambda path: 0)
+    service = SdSlotTransactionService(root, "op-delete-only")
+    service.execute(service.build_plan(games), games)
+    assert (root / "03" / "c.gdi").exists()
+
+
 def test_colliding_plan_is_rejected_before_touching_the_sd(tmp_path):
     import pytest
     root = tmp_path / "sd"

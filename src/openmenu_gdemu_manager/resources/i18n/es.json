@@ -207,6 +207,8 @@
     "legacy_upgrade.failed": "No se pudo actualizar el menú antiguo:\n{message}",
     "legacy_upgrade.blocked_status": "Menú no compatible. Actualiza a OpenMenu para administrar esta SD.",
     "legacy_upgrade.readonly_reason": "Menú no compatible. Actualiza a OpenMenu para administrar esta SD.",
+    "slot_space.insufficient": "No hay espacio suficiente en la SD para los juegos nuevos. No se cambió nada.\n\nSe necesitan {needed} y hay {free} libres: faltan {missing}. Quita algunos juegos de la lista o usa una tarjeta más grande.",
+    "slot_space.trash_hint": "La papelera interna de la SD ocupa {trash}. Los juegos eliminados se guardan ahí y no liberan espacio hasta que vacías la carpeta _openmenu_gdemu_manager/trash.",
     "slot_recovery.title": "Transacción de slots incompleta",
     "slot_recovery.body": "La SD tiene una operación de carpetas incompleta:\n{path}\n\nAntes de continuar, intenta completar o revertir la operación.",
     "slot_recovery.corrupt_body": "La SD tiene una transacción incompleta con metadatos faltantes o corruptos:\n{path}\n\nLa recuperación automática está deshabilitada. Abre la carpeta de recuperación para revisarla manualmente.",
