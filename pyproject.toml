@@ -37,9 +37,9 @@ openmenu-gdemu-agent = "openmenu_gdemu_manager.cli:main"
 openmenu-gdemu-manager = "openmenu_gdemu_manager.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/OlemOdracir/openmenu-gdemu-manager"
-Repository = "https://github.com/OlemOdracir/openmenu-gdemu-manager"
-Issues = "https://github.com/OlemOdracir/openmenu-gdemu-manager/issues"
+Homepage = "https://github.com/RicardoMeloG/openmenu-gdemu-manager"
+Repository = "https://github.com/RicardoMeloG/openmenu-gdemu-manager"
+Issues = "https://github.com/RicardoMeloG/openmenu-gdemu-manager/issues"
 
 [project.optional-dependencies]
 dev = [
