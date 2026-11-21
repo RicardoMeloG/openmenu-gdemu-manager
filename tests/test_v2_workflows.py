@@ -404,6 +404,28 @@ def test_missing_cover_filter_reads_as_a_checkbox_with_its_count(window,tmp_path
     assert not box.isEnabled() and [g.slot for g in window.filtered_games]==[2,3,4]
 
 
+def test_bulk_proposal_is_previewed_in_the_collection_even_for_new_games(window):
+    from PySide6.QtGui import QImage,QPainter
+    from PySide6.QtWidgets import QStyleOptionViewItem
+    window.games[1].pending_add=True
+    candidate=Candidate('test','Proposal',99)
+    window.bulk_proposals={3:BulkProposal(3,candidate,Image.new('RGB',(512,512),(0,0,255)),status='seleccionada'),
+                           4:BulkProposal(4,candidate,None,status='omitida')}
+    window.apply_filters()
+    model=window.games_model;rows={g.slot:i for i,g in enumerate(model._games)}
+    status=lambda slot:model.data(model.index(rows[slot],model.C_STATUS))
+    assert catalog.tr('new_pending') in status(3) and catalog.tr('proposal') in status(3)
+    assert catalog.tr('proposal') not in status(4)
+    # The proposal itself is drawn in the cover cell; a skipped one is not.
+    def cover_center(slot):
+        image=QImage(96,96,QImage.Format.Format_RGB32);image.fill(0xffffff);painter=QPainter(image)
+        option=QStyleOptionViewItem();option.rect=image.rect()
+        window.table.itemDelegate().paint(painter,option,model.index(rows[slot],model.C_COVER));painter.end()
+        return image.pixelColor(48,48)
+    assert cover_center(3).blue()>200 and cover_center(3).red()<60
+    assert cover_center(4).blue()<200 or cover_center(4).red()>60
+
+
 def design_accent():
     from openmenu_gdemu_manager.ui.v2 import design
     return design.QColor(design.colors()['accent']).name()
