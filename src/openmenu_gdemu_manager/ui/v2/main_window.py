@@ -26,7 +26,9 @@ def _animations_enabled():
     """Windows 'Show animations in Windows' (SPI_GETCLIENTAREAANIMATION)."""
     try:
         import ctypes
-        value=ctypes.c_bool(True)
+        from ctypes import wintypes
+        # The API writes a 4-byte BOOL; a 1-byte c_bool would be overrun.
+        value=wintypes.BOOL(1)
         if ctypes.windll.user32.SystemParametersInfoW(0x1042,0,ctypes.byref(value),0):return bool(value.value)
     except (AttributeError,OSError):
         pass

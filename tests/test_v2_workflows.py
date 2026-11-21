@@ -501,6 +501,11 @@ def test_bulk_proposal_is_previewed_in_the_collection_even_for_new_games(window)
     assert cover_center(4).blue()<200 or cover_center(4).red()>60
 
 
+def test_animations_setting_reads_a_full_windows_bool():
+    from openmenu_gdemu_manager.ui.v2 import main_window as v2
+    assert isinstance(v2._animations_enabled(),bool)
+
+
 def test_cover_thumbnail_fills_the_row_height(window):
     from PySide6.QtGui import QImage,QPainter
     from PySide6.QtWidgets import QStyleOptionViewItem
