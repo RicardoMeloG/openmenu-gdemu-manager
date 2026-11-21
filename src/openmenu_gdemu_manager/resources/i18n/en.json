@@ -919,7 +919,7 @@
     "v2.setup_install_failed": "OpenMenu could not be installed",
     "v2.setup_backup_ignored": "Backup reminder disabled for this destination and its current collection.",
     "v2.setup_backup_failed": "The backup was not completed. You can try again.",
-    "v2.brand_footer": "Dreamcast · Made by fans",
+    "v2.brand_footer": "Dreamcast",
     "v2.backup_required_intro": "Complete this backup by creating the copy. You can cancel to return; your collection will not be changed.",
     "v2.backup_preferences_warning": "The copy is complete, but its reminder could not be saved on this computer. Keep the backup location.",
     "v2.backup_registry_warning": "The copy is complete, but its location could not be recorded on the source. Keep the backup folder.",

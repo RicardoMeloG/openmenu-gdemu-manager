@@ -919,7 +919,7 @@
     "v2.setup_install_failed": "No se pudo instalar OpenMenu",
     "v2.setup_backup_ignored": "Recordatorio de respaldo desactivado para este destino y su colección actual.",
     "v2.setup_backup_failed": "El respaldo no se completó. Puedes volver a intentarlo.",
-    "v2.brand_footer": "Dreamcast · Hecho por fans",
+    "v2.brand_footer": "Dreamcast",
     "v2.backup_required_intro": "Para completar este respaldo necesitas crear la copia. Puedes cancelar para volver; no se cambiará tu colección.",
     "v2.backup_preferences_warning": "La copia está completa, pero no se pudo guardar el recordatorio en este equipo. Conserva la ubicación del respaldo.",
     "v2.backup_registry_warning": "La copia está completa, pero no se pudo registrar su ubicación en el origen. Conserva la carpeta del respaldo.",
