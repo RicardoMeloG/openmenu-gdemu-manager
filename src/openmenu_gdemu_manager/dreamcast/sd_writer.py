@@ -35,7 +35,10 @@ DEFAULT_MENU_ENTRY = {
 
 
 def first_free_slot(games: list[GameItem], max_slot: int = MAX_USER_SLOT) -> int | None:
-    used = {game.slot for game in games if not game.pending_delete}
+    # A slot pending deletion is still occupied until the save runs. Reusing it
+    # gives the addition the same original slot as the deletion, a plan that
+    # recovery rejects, and two games under one slot if the deletion is undone.
+    used = {game.slot for game in games}
     for slot in range(2, max_slot + 1):
         if slot not in used:
             return slot

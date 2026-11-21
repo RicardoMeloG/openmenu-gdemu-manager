@@ -204,6 +204,19 @@ def test_import_feedback_formats_actual_detected_and_selected_counts(window,lang
     dialog.reject();set_language('es')
 
 
+def test_successful_save_with_deletion_rescans_without_asking_and_forgets_deleted_game(window,monkeypatch):
+    scans=[]
+    monkeypatch.setattr(legacy.MainWindow,'start_scan',lambda self:scans.append([g.slot for g in self.games]))
+    monkeypatch.setattr(QMessageBox,'information',lambda *args,**kwargs:None)
+    def asked(*args,**kwargs):raise AssertionError('asked to discard after a successful save')
+    monkeypatch.setattr(QMessageBox,'question',asked)
+    window.path_edit.setText(str(window.root_path))
+    deleted=window.games[1];deleted.pending_delete=True;deleted.save_status='pendiente_eliminar'
+    window.save_finished('ok')
+    assert scans==[[2,4]] and deleted not in window.games and 3 not in window.games_by_slot
+    assert not window.has_pending_changes()
+
+
 def test_import_cannot_accept_or_enable_prepare_while_inspection_runs(window,monkeypatch):
     import time
     from openmenu_gdemu_manager.ui.v2 import import_games

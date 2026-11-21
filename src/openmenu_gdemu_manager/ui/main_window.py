@@ -819,6 +819,8 @@ class MainWindow(QMainWindow):
         if can_auto_recover:
             if service.can_complete_recovery():
                 complete = message.addButton(tr("slot_recovery.complete"), QMessageBox.ButtonRole.AcceptRole)
+            elif service.menu_out_of_date():
+                message.setInformativeText(tr("slot_recovery.menu_not_rebuilt", path=tx_dir))
             else:
                 message.setInformativeText(tr("slot_recovery.revert_in_progress"))
             revert = message.addButton(tr("slot_recovery.revert"), QMessageBox.ButtonRole.DestructiveRole)

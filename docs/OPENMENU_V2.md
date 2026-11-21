@@ -52,7 +52,7 @@ Native file pickers remain OS-owned. See [screen coverage and visual review](V2_
 | Automatic bulk proposals and batch approval | Original bulk workers/quality rules; proposals do not automatically become a manual Save. Explicit batch Save retains the original review/confirmation. |
 | Current cover, quality, dimensions, source and previous covers | Game/image information and persistent original cover library. Full metadata remains on GameItem. |
 | Import local covers and web search templates | Original file picker/providers and configured web templates, disc-ID search, source opening, originals folder. |
-| Backup, transaction recovery and internal trash | Original copy/recovery/trash services; native V2 backup presentation, retained recovery dialogs. |
+| Backup, transaction recovery and internal trash | Original copy/recovery/trash services; native V2 backup presentation, retained recovery dialogs. A slot transaction stays incomplete (`slots_published`) until menu 01 is rebuilt for its folders; if the rebuild fails, recovery offers to revert to the layout the current menu describes, and offers completion only when 01 already lists the new layout. A slot pending deletion is not reused by an addition in the same save. |
 | Spanish/English, language packages | Original language registry; V2 strings/actions use its catalogs. |
 | Install templates, backgrounds and music | Original template registry/menu/audio controller. |
 | JSON/TSV export, logs and updates | Original menus/services. The displayed version comes from the current code. |

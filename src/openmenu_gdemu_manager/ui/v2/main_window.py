@@ -371,6 +371,11 @@ class MainWindowV2(MainWindow):
     def save_finished(self,message):
         self._before_edits.clear()
         self.cover_host.store.clear()
+        # Saved deletions are no longer on the SD. Left in the list they still
+        # count as pending (the rescan would ask to discard), and a second save
+        # would send to the trash the game that took over their slot.
+        self.games=[game for game in self.games if not game.pending_delete]
+        self.games_by_slot={game.slot:game for game in self.games}
         super().save_finished(message)
 
     def ensure_write_allowed(self):
