@@ -28,6 +28,23 @@ def test_invalid_gdi_reasons(tmp_path,failure):
 def test_quoted_names_and_offsets_valid(tmp_path):validate_source(source(tmp_path,offset=16))
 
 
+def test_gdi_without_optional_offset_field_is_valid(tmp_path):
+    folder=tmp_path/'five_fields';folder.mkdir()
+    (folder/'disc.gdi').write_text('3\r\n1 0 4 2352 track01.bin\r\n2 600 0 2352 track02.raw\r\n3 45000 4 2352 "track 03.bin"\r\n')
+    for name,sectors in (('track01.bin',300),('track02.raw',150),('track 03.bin',20)):(folder/name).write_bytes(bytes(2352*sectors))
+    validate_source(folder)
+    # Without the offset field, damage is still detected.
+    (folder/'track02.raw').write_bytes(bytes(2352*150+7))
+    with pytest.raises(ImageIntegrityError,match='incomplete sector'):validate_source(folder)
+
+
+@pytest.mark.parametrize('line',['1 45000 4 2048','1 45000 4 2048 track.iso 0 extra'])
+def test_gdi_with_missing_or_extra_fields_is_rejected(tmp_path,line):
+    folder=tmp_path/'bad_fields';folder.mkdir()
+    (folder/'disc.gdi').write_text(f'1\n{line}\n');(folder/'track.iso').write_bytes(bytes(2048))
+    with pytest.raises(ImageIntegrityError,match='track fields'):validate_source(folder)
+
+
 def test_proven_whole_sector_truncation(tmp_path):
     folder=source(tmp_path,sectors=20)
     image=bytearray((folder/'track 03.iso').read_bytes())
