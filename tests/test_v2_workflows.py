@@ -501,6 +501,20 @@ def test_bulk_proposal_is_previewed_in_the_collection_even_for_new_games(window)
     assert cover_center(4).blue()<200 or cover_center(4).red()>60
 
 
+def test_cover_thumbnail_fills_the_row_height(window):
+    from PySide6.QtGui import QImage,QPainter
+    from PySide6.QtWidgets import QStyleOptionViewItem
+    model=window.games_model
+    width=window.table.columnWidth(model.C_COVER);height=window.table.verticalHeader().defaultSectionSize()
+    assert (width,height)==(84,76)
+    image=QImage(width,height,QImage.Format.Format_RGB32);image.fill(0xffffff);painter=QPainter(image)
+    option=QStyleOptionViewItem();option.rect=image.rect()
+    window.table.itemDelegate().paint(painter,option,model.index(0,model.C_COVER));painter.end()
+    # The saved orange cover reaches the 4 px inset on every side (68 x 68).
+    for x,y in ((9,6),(74,6),(9,70),(74,70)):
+        color=image.pixelColor(x,y);assert color.red()>200 and color.blue()<80,(x,y,color.name())
+
+
 def design_accent():
     from openmenu_gdemu_manager.ui.v2 import design
     return design.QColor(design.colors()['accent']).name()

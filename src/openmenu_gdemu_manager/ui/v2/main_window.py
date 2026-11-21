@@ -98,7 +98,9 @@ class MainWindowV2(MainWindow):
         header=self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
         header.moveSection(header.visualIndex(GamesTableModel.C_SLOT),1)
-        for col,width in ((0,78),(1,68),(2,52),(5,110),(6,180),(8,120)):
+        # Cover column: 68 px thumbnail (row height 76 minus the delegate's 4 px
+        # inset) plus the delegate's 8 px side margins, as in the V5 mockup.
+        for col,width in ((0,78),(GamesTableModel.C_COVER,84),(GamesTableModel.C_SLOT,52),(5,110),(6,180),(8,120)):
             header.setSectionResizeMode(col,QHeaderView.ResizeMode.Fixed);self.table.setColumnWidth(col,width)
         header.setSectionResizeMode(3,QHeaderView.ResizeMode.Stretch)
         for col in (4,7):self.table.setColumnHidden(col,True)
