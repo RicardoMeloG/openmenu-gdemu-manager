@@ -388,6 +388,22 @@ def test_pending_save_button_breathes_and_counts_changes(window,monkeypatch):
     assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect) and window._breath.state()!=QAbstractAnimation.State.Running
 
 
+def test_missing_cover_filter_reads_as_a_checkbox_with_its_count(window,tmp_path):
+    from openmenu_gdemu_manager.ui.v2.design import SelectionCheck
+    window._refresh_controls()
+    box=window.missing_button
+    assert isinstance(box,SelectionCheck) and box.text()==catalog.tr('missing_only',count=2) and '{' not in box.text()
+    assert box.isEnabled() and not box.isChecked() and [g.slot for g in window.filtered_games]==[2,3,4]
+    box.setChecked(True);window.toggle_missing()
+    assert [g.slot for g in window.filtered_games]==[3,4]
+    # With every cover present there is nothing to filter, but an active filter can still be turned off.
+    for game in window.games[1:]:game.has_placeholder_cover=False;game.current_cover=tmp_path/'cover.png'
+    window._refresh_controls()
+    assert box.text()==catalog.tr('missing_only',count=0) and box.isEnabled()
+    box.setChecked(False);window.toggle_missing()
+    assert not box.isEnabled() and [g.slot for g in window.filtered_games]==[2,3,4]
+
+
 def design_accent():
     from openmenu_gdemu_manager.ui.v2 import design
     return design.QColor(design.colors()['accent']).name()

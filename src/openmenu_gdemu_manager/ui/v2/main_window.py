@@ -17,7 +17,7 @@ from ..dialogs import ConfirmApplyDialog
 from ..theme import template_palette
 from . import design,catalog,configuration
 from .catalog import tr
-from .design import Button,DestinationButton,label,repolish
+from .design import Button,DestinationButton,SelectionCheck,label,repolish
 from .collection import CollectionModel,CollectionDelegate,CollectionHeader
 from .bridge import CoverHost,ProductionWorkspace
 
@@ -74,8 +74,9 @@ class MainWindowV2(MainWindow):
         self.guidance=label('',wrap=True);self.guidance.setObjectName('Guidance');layout.addWidget(self.guidance)
         filters=QHBoxLayout()
         self.text_filter.setParent(root);self.text_filter.setFixedHeight(36);filters.addWidget(self.text_filter,1)
-        self.missing_button=Button('missing',self.toggle_missing,compact=True)
-        self.missing_button.setCheckable(True);filters.addWidget(self.missing_button)
+        # A checkbox, not a button: it is a filter, and its state must read at a glance.
+        self.missing_button=SelectionCheck(tr('missing_only',count=0));self.missing_button.setProperty('chip',True)
+        self.missing_button.setFixedHeight(36);self.missing_button.clicked.connect(self.toggle_missing);filters.addWidget(self.missing_button)
         for widget in (self.status_filter,self.bulk_mode_button,self.bulk_button):
             widget.setParent(root);widget.setStyleSheet('');widget.setFixedHeight(36);filters.addWidget(widget)
         layout.addLayout(filters)
@@ -122,7 +123,6 @@ class MainWindowV2(MainWindow):
         super().retranslate_ui()
         if self._v2_ready:
             self.heading.setText(tr('collection_title'));self.subtitle.setText(tr('collection_subtitle'))
-            self.missing_button.setText(catalog.action_label('missing'))
             for action in self.menuBar().actions():
                 if action.menu():action.menu().aboutToShow.connect(self.leave_bulk)
             self._refresh_controls()
@@ -179,6 +179,11 @@ class MainWindowV2(MainWindow):
         repolish(self.configuration_note)
         self.guidance.setText(tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else tr('missing_guidance',count=missing) if missing else tr('all_covered') if self.games else tr('collection_empty') if self.diagnostic and self.write_allowed else tr('destination_unknown'))
         self.summary.setText(tr('collection_count',count=len(self.games),missing=missing))
+        caption=tr('missing_only',count=missing)
+        if self.missing_button.text()!=caption:
+            self.missing_button.setText(caption);self.missing_button.setAccessibleName(caption);self.missing_button.updateGeometry()
+        # Nothing to filter with every cover present, but an active filter must stay switchable off.
+        self.missing_button.setEnabled(bool(missing) or self.missing_button.isChecked())
         for button in (self.add_game_button,self.save_changes_button,self.bulk_mode_button):repolish(button)
         for button in (self.add_game_button,self.save_changes_button):
             primary=button.property('role')=='primary'

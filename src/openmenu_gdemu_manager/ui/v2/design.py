@@ -206,7 +206,9 @@ class SelectionCheck(QCheckBox):
 
     def sizeHint(self):
         target = METRICS["selection-target"]
-        return QSize(target + (self.fontMetrics().horizontalAdvance(self.text()) + 4 if self.text() else 0), target)
+        # A filter chip keeps room on the right for its highlighted background.
+        tail = 12 if self.property("chip") else 4
+        return QSize(target + (self.fontMetrics().horizontalAdvance(self.text()) + tail if self.text() else 0), target)
 
     def hitButton(self, point):
         return self.rect().contains(point)
@@ -220,6 +222,11 @@ class SelectionCheck(QCheckBox):
         size = METRICS["selection-size"]
         rect = QRectF((METRICS["selection-target"] - size) / 2, (self.height() - size) / 2, size, size)
         p.setOpacity(1 if self.isEnabled() else .5)
+        if self.property("chip") and self.isChecked():
+            # An active filter is highlighted as a whole, not only by its box.
+            p.setPen(QPen(QColor(c["accent"]), 1))
+            p.setBrush(QColor(c["accent_soft"]))
+            p.drawRoundedRect(QRectF(.5, .5, self.width() - 1, self.height() - 1), METRICS["radius"], METRICS["radius"])
         p.setPen(QPen(QColor(c["accent"] if filled else c["muted"]), 1.5))
         p.setBrush(QColor(c["accent"] if filled else c["paper"]))
         p.drawRoundedRect(rect, 3, 3)

@@ -726,6 +726,7 @@
     "v2.import_filter": "Filter by name, folder or format",
     "v2.all_visible": "All shown ({count})",
     "v2.save_count": "Save changes ({count})",
+    "v2.missing_only": "Only missing covers ({count})",
     "v2.selection_capacity": "Selection: {size} · {free} free on the SD · {slots} free positions",
     "v2.selection_capacity_slots": "Selection: {size} · {slots} free positions",
     "v2.selection_too_big": "The selection does not fit on the SD: {missing} short. Uncheck some games to prepare them.",
