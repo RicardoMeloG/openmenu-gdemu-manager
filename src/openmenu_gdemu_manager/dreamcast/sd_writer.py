@@ -22,7 +22,11 @@ PVRT_DATA_SIZE = 131080
 PX_FORMAT = 0x01
 DATA_TYPE = 0x01
 WIDTH = HEIGHT = 256
-MAX_USER_SLOT = 127
+# Highest game folder the app creates. It used to be 127 with no documented
+# GDEMU/openMenu reason; 999 is only the end of three-digit folder names, so in
+# practice the card's free space limits a collection first. More than 126 games
+# on real hardware is not yet verified.
+MAX_USER_SLOT = 999
 DEFAULT_MENU_ENTRY = {
     "name": "openMenu",
     "disc": "1/1",

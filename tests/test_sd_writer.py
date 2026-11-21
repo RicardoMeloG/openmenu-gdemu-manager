@@ -18,6 +18,13 @@ def test_first_free_slot_does_not_reuse_a_slot_pending_deletion():
     assert first_free_slot(games) == 4
 
 
+def test_first_free_slot_goes_past_the_old_127_cap():
+    games = [GameItem(slot=slot, name=f"G{slot}") for slot in range(2, 128)]
+
+    assert first_free_slot(games) == 128
+    assert first_free_slot([GameItem(slot=slot, name="G") for slot in range(2, 1000)]) is None
+
+
 def test_build_openmenu_text_contains_slot_entries():
     games = [GameItem(slot=2, name="Sonic Adventure", product_id="MK-51000", region="U")]
 

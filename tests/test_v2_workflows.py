@@ -385,7 +385,7 @@ def test_import_explains_a_selection_that_does_not_fit_when_preparing(window,mon
     monkeypatch.setattr(import_games,'free_space',lambda root:4*gb)
     warnings=[];monkeypatch.setattr(import_games,'warn',lambda parent,title,text:warnings.append((title,text)))
     dialog=ImportGamesDialog(window.settings,window.games,window)
-    assert dialog.free_slots==123 and dialog.free_bytes==4*gb and dialog.capacity.isHidden()
+    assert dialog.free_slots==995 and dialog.free_bytes==4*gb and dialog.capacity.isHidden()
     dialog.received([(RomLibraryEntry('A','CDI','a.cdi',size_bytes=2*gb),''),(RomLibraryEntry('B','CDI','b.cdi',size_bytes=2*gb),''),(RomLibraryEntry('C','CDI','c.cdi',size_bytes=gb),'')])
     # Margin: one cover per checked game plus room to rebuild menu 01.
     assert dialog.margin_bytes()==3*import_games.COVER_BYTES_PER_GAME+import_games.SPACE_MARGIN_BYTES
@@ -393,7 +393,7 @@ def test_import_explains_a_selection_that_does_not_fit_when_preparing(window,mon
     five,four=import_games.format_bytes(5*gb),import_games.format_bytes(4*gb)
     assert five=='5.0 GB'
     text=dialog.capacity.text()
-    assert catalog.tr('selection_capacity',size=five,margin=margin,free=four,drive=str(window.root_path),slots=123) in text
+    assert catalog.tr('selection_capacity',size=five,margin=margin,free=four,drive=str(window.root_path)) in text
     assert catalog.tr('selection_too_big',missing=missing) in text and '{' not in text
     # Prepare stays enabled and explains itself instead of doing nothing.
     assert dialog.prepare.isEnabled()
@@ -411,16 +411,19 @@ def test_import_explains_a_selection_that_does_not_fit_when_preparing(window,mon
     dialog.accept_selection();assert [e.name for e in emitted]==['B','C'] and len(warnings)==1
 
 
-def test_import_explains_more_games_than_free_positions(window,monkeypatch):
+def test_import_explains_more_games_than_free_folders(window,monkeypatch):
     from openmenu_gdemu_manager.ui.v2 import import_games
     monkeypatch.setattr(import_games,'free_space',lambda root:10*1024**4)
     warnings=[];monkeypatch.setattr(import_games,'warn',lambda parent,title,text:warnings.append(text))
-    games=[GameItem(slot,f'G{slot}') for slot in range(2,126)]
+    # Folders 02..999: the old 127 cap had no documented hardware reason.
+    assert import_games.MAX_USER_SLOT==999
+    games=[GameItem(slot,f'G{slot}') for slot in range(2,998)]
     dialog=ImportGamesDialog(window.settings,games,window)
     assert dialog.free_slots==2
     dialog.received([(RomLibraryEntry(name,'CDI',f'{name}.cdi',size_bytes=1),'') for name in ('A','B','C')])
-    assert dialog.prepare.isEnabled() and catalog.tr('selection_too_many',count=3,slots=2) in dialog.capacity.text()
-    dialog.accept_selection();assert catalog.tr('selection_too_many',count=3,slots=2) in warnings[0]
+    expected=catalog.tr('selection_too_many',count=3,games=998,last=999,slots=2)
+    assert dialog.prepare.isEnabled() and expected in dialog.capacity.text() and '{' not in expected
+    dialog.accept_selection();assert expected in warnings[0]
     dialog.toggle(2,False);assert dialog.capacity_problem()==''
     dialog.reject()
 

@@ -333,15 +333,16 @@ class ImportGamesDialog(QDialog):
         return sum(1 for row,checked in enumerate(self.checked) if checked and self.table.isRowHidden(row))
     def capacity_problem(self):
         count=sum(self.checked)
-        if count>self.free_slots:return tr('selection_too_many',count=count,slots=self.free_slots)
+        if count>self.free_slots:return self.too_many_text(count)
         if self.free_bytes is not None and count and self.needed_bytes()>self.free_bytes:
             return tr('selection_too_big',missing=format_bytes(self.needed_bytes()-self.free_bytes))
         return ''
     def show_capacity(self,problem):
         self.capacity.setVisible(bool(self.entries))
         size=format_bytes(self.selected_bytes())
-        summary=(tr('selection_capacity',size=size,margin=format_bytes(self.margin_bytes()),free=format_bytes(self.free_bytes),drive=self.destination,slots=self.free_slots)
-                 if self.free_bytes is not None else tr('selection_capacity_slots',size=size,slots=self.free_slots))
+        # Free space is what limits a collection; folders only matter when they run out.
+        summary=(tr('selection_capacity',size=size,margin=format_bytes(self.margin_bytes()),free=format_bytes(self.free_bytes),drive=self.destination)
+                 if self.free_bytes is not None else tr('selection_capacity_slots',size=size))
         hidden=self.hidden_checked()
         # A problem caused by games the filter hides must say so, or the visible
         # selection looks small enough to fit.
@@ -350,11 +351,13 @@ class ImportGamesDialog(QDialog):
         tone='warning' if problem else None
         if self.capacity.property('tone')!=tone:
             self.capacity.setProperty('tone',tone);self.capacity.setProperty('muted',not problem);repolish(self.capacity)
+    def too_many_text(self,count):
+        return tr('selection_too_many',count=count,games=MAX_USER_SLOT-1,last=MAX_USER_SLOT,slots=self.free_slots)
     def capacity_details(self):
         """Full explanation shown when Prepare is pressed with a selection that does not fit."""
         count=sum(self.checked);lines=[]
         if count>self.free_slots:
-            lines.append(tr('selection_too_many',count=count,slots=self.free_slots))
+            lines.append(self.too_many_text(count))
         else:
             lines.append(tr('capacity_games',count=count,size=format_bytes(self.selected_bytes())))
             lines.append(tr('capacity_margin',size=format_bytes(self.margin_bytes())))

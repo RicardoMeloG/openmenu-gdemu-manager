@@ -1121,7 +1121,7 @@ class MainWindow(QMainWindow):
         self.apply_filters()
         self.stop_busy()
         if added_games:
-            suffix = f" {skipped} omitidos por falta de slot." if skipped else ""
+            suffix = " " + tr("game.skipped_no_slot", count=skipped) if skipped else ""
             self.status.setText(tr("game.added_memory", count=len(added_games), suffix=suffix))
         elif skipped:
             QMessageBox.warning(self, APP_NAME, tr("game.no_slots"))
