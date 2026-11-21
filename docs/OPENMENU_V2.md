@@ -9,6 +9,12 @@ HTML mockup or a simulation, and is not yet a hardware-validated public release.
 
 The collection answers which games are present and which need a cover. It uses
 compact rows, small uncropped thumbnails, disc ID, region and pending states.
+It has no page title: the title bar names the app and the destination card heads
+the window, so the game list keeps that height. The card adds a short GDEMU.ini
+status; the full configuration note gets its own line only when the file needs
+attention, and its details action sits beside the guidance banner. A
+«Solo sin carátula (n)» checkbox filters games without a cover, and the save
+button counts pending changes and breathes an orange halo while they exist.
 The cover workspace helps fans find a design, inspect its scan and choose it.
 It starts with six alternatives per page, across every available region. Click
 an image to enlarge it; compare two distinct images side by side or by alternation,

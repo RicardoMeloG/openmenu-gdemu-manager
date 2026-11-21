@@ -13,7 +13,7 @@ from openmenu_gdemu_manager.ui.v2.bridge import ProductionWorkspace
 from openmenu_gdemu_manager.ui.v2.import_games import ImportGamesDialog
 from openmenu_gdemu_manager.ui.widgets import GamesTableModel
 from openmenu_gdemu_manager.ui.v2 import catalog
-from openmenu_gdemu_manager.i18n import load_internal_language,set_language
+from openmenu_gdemu_manager.i18n import load_internal_language,set_language,tr as legacy_tr
 
 
 @pytest.fixture
@@ -620,6 +620,22 @@ def test_search_web_preserves_configured_templates(window,monkeypatch):
     ws.web_menu()
     assert ws.web_popup.actions()[0].text()=='Custom'
     ws.web_popup.close();ws.reject()
+
+
+@pytest.mark.parametrize('ini,status,own_line',[(None,'missing',False),('open_time=1000\n','valid',False),('open_time=149\n','invalid',True)])
+def test_collection_header_is_compact_and_gdemu_ini_needs_a_line_only_when_it_needs_attention(window,ini,status,own_line):
+    from openmenu_gdemu_manager.dreamcast.storage_diagnostics import diagnose_storage
+    slot=window.root_path/'01';slot.mkdir()
+    (slot/'track05.iso').write_bytes(b'[OPENMENU] openMenu NEODC_1')
+    if ini:(window.root_path/'GDEMU.ini').write_text(ini)
+    window.diagnostic=diagnose_storage(window.root_path);window._refresh_controls();QTest.qWait(20)
+    assert window.diagnostic.configuration.status==status
+    assert not hasattr(window,'heading') and not hasattr(window,'subtitle')
+    assert window.configuration_note.isVisible()==own_line and window.configuration_details_button.isVisible()
+    short=legacy_tr('v2.gdemu_config.short_'+status) if not own_line else None
+    assert (short in window.destination.destination_subtitle) if short else 'GDEMU.ini' not in window.destination.destination_subtitle
+    # The destination card is now the first thing in the window.
+    assert window.destination.mapTo(window,window.destination.rect().topLeft()).y()<window.menuBar().height()+40
 
 
 def test_destination_uses_real_diagnostic_values(window):

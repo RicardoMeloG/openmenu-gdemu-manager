@@ -63,7 +63,6 @@ def apply_theme(app, value="light"):
     QLabel {{ background: transparent; }}
     QLabel[muted=true] {{ color: {c['muted']}; font-size: {METRICS['font-metadata']}px; }}
     QLabel[heading=true] {{ font-size: {METRICS['font-title']}px; font-weight: 600; }}
-    QLabel[collectionHeading=true] {{ font-size: {METRICS['font-collection-heading']}px; border-left: 3px solid {c['accent']}; padding-left: {METRICS['space-2']}px; }}
     QLabel[title=true] {{ font-size: {METRICS['font-body']}px; font-weight: 600; }}
     QLineEdit#PreparationPath {{background:transparent;border:none;padding:0;min-height:24px;}}
     QLineEdit#PreparationPath:focus {{border:1px solid {c['focus']};border-radius:4px;}}

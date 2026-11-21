@@ -53,25 +53,24 @@ class MainWindowV2(MainWindow):
         root=ThemeBackgroundWidget()
         root.setObjectName('Surface')
         layout=QVBoxLayout(root);layout.setContentsMargins(22,16,22,12);layout.setSpacing(12)
-        self.heading=label(tr('collection_title'))
-        self.heading.setProperty('collectionHeading',True)
-        layout.addWidget(self.heading)
-        self.subtitle=label(tr('collection_subtitle'),muted=True)
-        layout.addWidget(self.subtitle)
+        # No page title: this is the window's only screen and the title bar names
+        # the app, so the game list gets that height instead.
         toolbar=QHBoxLayout()
         self.destination=DestinationButton(self.pick_root,str(self.root_path),tr('destination_unknown'))
         toolbar.addWidget(self.destination,1)
         for button in (self.scan_button,self.add_game_button,self.save_changes_button):
             button.setParent(root);button.setStyleSheet('');button.setFixedHeight(42);toolbar.addWidget(button)
         layout.addLayout(toolbar)
-        config_row=QHBoxLayout()
-        self.configuration_note=label('',muted=True,wrap=True);config_row.addWidget(self.configuration_note,1)
+        # GDEMU.ini gets its own line only when it needs attention; otherwise a
+        # short status rides in the destination card and the details action
+        # shares the guidance row.
+        self.configuration_note=label('',muted=True,wrap=True);layout.addWidget(self.configuration_note)
         self.configuration_details_button=Button('info',self.show_configuration_details,text=legacy_tr('v2.gdemu_config.details_action'),compact=True)
-        config_row.addWidget(self.configuration_details_button)
-        layout.addLayout(config_row)
         # Keep the controller's path and browse handles, without duplicate chrome.
         for widget in (self.path_edit,self.browse_button):widget.setParent(root);widget.hide()
-        self.guidance=label('',wrap=True);self.guidance.setObjectName('Guidance');layout.addWidget(self.guidance)
+        guidance_row=QHBoxLayout()
+        self.guidance=label('',wrap=True);self.guidance.setObjectName('Guidance');guidance_row.addWidget(self.guidance,1)
+        guidance_row.addWidget(self.configuration_details_button);layout.addLayout(guidance_row)
         filters=QHBoxLayout()
         self.text_filter.setParent(root);self.text_filter.setFixedHeight(36);filters.addWidget(self.text_filter,1)
         # A checkbox, not a button: it is a filter, and its state must read at a glance.
@@ -122,7 +121,6 @@ class MainWindowV2(MainWindow):
     def retranslate_ui(self):
         super().retranslate_ui()
         if self._v2_ready:
-            self.heading.setText(tr('collection_title'));self.subtitle.setText(tr('collection_subtitle'))
             for action in self.menuBar().actions():
                 if action.menu():action.menu().aboutToShow.connect(self.leave_bulk)
             self._refresh_controls()
@@ -167,10 +165,12 @@ class MainWindowV2(MainWindow):
         if not self.operation_running():self.destination.setEnabled(True)
         summary=self.diagnostic.summary if self.diagnostic else None
         subtitle=tr('destination_ready',filesystem=summary.filesystem or tr('local_folder'),free=f'{summary.free_bytes/1024**3:.1f}') if self.write_allowed and summary else tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else tr('destination_unknown')
-        self.destination.set_destination(str(self.root_path),subtitle)
         config=self.diagnostic.configuration if self.diagnostic else None
+        attention=bool(config and config.status in ('invalid','unreadable','review'))
+        if config and not attention:subtitle+=' · '+legacy_tr('v2.gdemu_config.short_'+config.status)
+        self.destination.set_destination(str(self.root_path),subtitle)
         self.configuration_note.setText(configuration.summary(config))
-        self.configuration_note.setVisible(config is not None)
+        self.configuration_note.setVisible(attention)
         self.configuration_details_button.setVisible(config is not None)
         self.configuration_details_button.setEnabled(config is not None and not self.operation_running())
         self.configuration_details_button.setText(legacy_tr('v2.gdemu_config.details_action'))
