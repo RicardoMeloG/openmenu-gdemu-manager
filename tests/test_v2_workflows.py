@@ -255,6 +255,18 @@ def test_import_filter_hides_rows_without_changing_selection(window,language):
     set_language('es')
 
 
+def test_pending_save_button_keeps_readable_primary_colors(window):
+    from openmenu_gdemu_manager.ui.v2 import design
+    window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
+    window.apply_filters();window._update_save_button_state();window._refresh_controls();QTest.qWait(20)
+    button=window.save_changes_button
+    assert button.property('role')=='primary' and button.property('attention')=='true'
+    # The legacy attention marker must not replace the orange fill under white text.
+    image=button.grab().toImage();sample=image.pixelColor(image.width()-8,image.height()//2)
+    accent=design.QColor(design.colors()['accent'])
+    assert max(abs(sample.red()-accent.red()),abs(sample.green()-accent.green()),abs(sample.blue()-accent.blue()))<24
+
+
 def test_successful_save_with_deletion_rescans_without_asking_and_forgets_deleted_game(window,monkeypatch):
     scans=[]
     monkeypatch.setattr(legacy.MainWindow,'start_scan',lambda self:scans.append([g.slot for g in self.games]))
