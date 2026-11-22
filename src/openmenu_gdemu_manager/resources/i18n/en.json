@@ -612,6 +612,7 @@
     "v2.resolution_small": "Insufficient resolution",
     "v2.image_error": "Image could not be loaded",
     "v2.chosen": "Cover chosen. It is pending save.",
+    "v2.chosen_resized": "Cover chosen ({width} × {height} px). OpenMenu will store it at {size} × {size} px; it is pending save.",
     "v2.kept": "You kept the current cover. No replacement prepared.",
     "v2.discarded": "Choice undone. Other changes are preserved.",
     "v2.blocked": "Cannot prepare this change: check the destination or read-only mode.",

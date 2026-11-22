@@ -940,3 +940,17 @@ def test_clickable_controls_show_the_pointing_hand(window):
     assert not button.testAttribute(Qt.WidgetAttribute.WA_SetCursor)
     button.setEnabled(True);QApplication.processEvents()
     assert button.cursor().shape()==Qt.CursorShape.PointingHandCursor
+
+
+@pytest.mark.parametrize('size,resized',[((680,680),True),((256,256),False)])
+def test_choosing_a_large_cover_says_openmenu_stores_256(window,size,resized):
+    game=window.games[1];store=window.cover_host.store;view=store.view(game)
+    key=store.add_candidate(view,Candidate('local','Big',95,local_path='generated'),Image.new('RGB',size,'blue'))
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False)
+    ws.choose(key)
+    text=ws.feedback.text()
+    if resized:
+        assert '680 × 680' in text and '256 × 256' in text
+    else:
+        assert text==catalog.tr('chosen')
+    ws.reject()

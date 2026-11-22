@@ -612,6 +612,7 @@
     "v2.resolution_small": "Resolución insuficiente",
     "v2.image_error": "No pudo cargarse la imagen",
     "v2.chosen": "Carátula elegida. Queda pendiente de guardar.",
+    "v2.chosen_resized": "Carátula elegida ({width} × {height} px). OpenMenu la guardará a {size} × {size} px; queda pendiente de guardar.",
     "v2.kept": "Conservas la carátula actual. No se preparó una sustitución.",
     "v2.discarded": "Elección deshecha. Los demás cambios se conservan.",
     "v2.blocked": "No se puede preparar este cambio: revisa el destino o el modo de solo lectura.",

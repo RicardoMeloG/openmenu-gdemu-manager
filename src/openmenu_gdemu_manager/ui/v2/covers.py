@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from ...app.logger import logged_operation
+from ...core.image_quality import NORMALIZED_SIZE
 from math import ceil, floor
 from pathlib import Path
 from urllib.parse import urlencode
@@ -596,12 +597,21 @@ class CoverWorkspace(QDialog):
         if result=='confirm_low':
             self.owner.confirm(tr('low_title'),tr('confirm_low'),lambda:self.confirm_choice(key),self)
             return
-        self.message(tr('image_error' if result=='decode_error' else result))
+        self.message(self.choice_message(result,key))
         self.refresh()
 
     def confirm_choice(self,key):
-        self.message(tr(self.store.choose(self.game,key,True)))
+        self.message(self.choice_message(self.store.choose(self.game,key,True),key))
         self.refresh()
+
+    def choice_message(self,result,key):
+        if result=='decode_error':return tr('image_error')
+        item=self.store.images.get(key,{})
+        width,height=item.get('width',0),item.get('height',0)
+        if result=='chosen' and max(width,height)>NORMALIZED_SIZE:
+            # OpenMenu stores every cover at 256 x 256; say so before saving.
+            return tr('chosen_resized',width=width,height=height,size=NORMALIZED_SIZE)
+        return tr(result)
 
     def retry_image(self,key):
         viewer=self.stack.currentWidget()
