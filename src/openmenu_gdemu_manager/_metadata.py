@@ -2,5 +2,5 @@
 
 APP_NAME = "OpenMenu GDEMU Manager"
 __version__ = "2.0.0.dev7"
-REPOSITORY_URL = "https://github.com/OlemOdracir/openmenu-gdemu-manager"
-CONTACT_URL = "https://github.com/OlemOdracir/openmenu-gdemu-manager/issues"
+REPOSITORY_URL = "https://github.com/RicardoMeloG/openmenu-gdemu-manager"
+CONTACT_URL = "https://github.com/RicardoMeloG/openmenu-gdemu-manager/issues"

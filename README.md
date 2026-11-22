@@ -24,7 +24,7 @@ This repository does not include ROMs, BIOS files, commercial game data, SD back
 
 ## Download
 
-Download the latest portable Windows ZIP from [GitHub Releases](https://github.com/OlemOdracir/openmenu-gdemu-manager/releases).
+Download the latest portable Windows ZIP from [GitHub Releases](https://github.com/RicardoMeloG/openmenu-gdemu-manager/releases).
 
 Extract the ZIP and run `OpenMenuGDEMUManager.exe`. The app stores settings, logs, cache and generated files in the portable `data/` folder next to the executable.
 
@@ -167,4 +167,4 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Contact
 
-Project contact: [GitHub Issues](https://github.com/OlemOdracir/openmenu-gdemu-manager/issues)
+Project contact: [GitHub Issues](https://github.com/RicardoMeloG/openmenu-gdemu-manager/issues)
