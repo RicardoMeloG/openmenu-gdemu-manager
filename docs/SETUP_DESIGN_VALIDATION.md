@@ -6,9 +6,9 @@ Design contract: `setup-dreamcast-2026-10-10`
 Contract digest: `db33938d7a3ac44e5677709c5fa5bcde4efa2088026bf496ffc811ed2c5d5963`
 Source digest: `13dc4251b2e524fe816ca23065fc575718c3d7179f0789b3ef2e7adaed3b5203`
 
-Design result: **PENDING**
+Design result: **APPROVED**
 
-Review is stale: source or design contract changed.
+Independent review recorded for matching sources and screenshots.
 
 Functional pytest PASS is separate from this design gate. Earlier compact-wizard approvals do not approve the new reference.
 
