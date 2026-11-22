@@ -927,3 +927,16 @@ def test_setup_legacy_action_hands_off_to_original_update_review(window, monkeyp
     assert events==['backup','upgrade']
     assert not window.write_allowed and window.games==[]
     assert (window.root_path/'01/track05.iso').read_bytes()==before
+
+
+def test_clickable_controls_show_the_pointing_hand(window):
+    from PySide6.QtWidgets import QAbstractButton
+    buttons=[b for b in window.findChildren(QAbstractButton) if b.isVisible()]
+    assert buttons
+    enabled=[b for b in buttons if b.isEnabled()]
+    assert enabled and all(b.cursor().shape()==Qt.CursorShape.PointingHandCursor for b in enabled)
+    button=enabled[0]
+    button.setEnabled(False);QApplication.processEvents()
+    assert not button.testAttribute(Qt.WidgetAttribute.WA_SetCursor)
+    button.setEnabled(True);QApplication.processEvents()
+    assert button.cursor().shape()==Qt.CursorShape.PointingHandCursor

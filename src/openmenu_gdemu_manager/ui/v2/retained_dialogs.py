@@ -5,7 +5,7 @@ owns only their visual integration. Unregistered application dialogs are reporte
 by the coverage inventory, rather than silently counted as design-approved.
 """
 from PySide6.QtCore import QObject, QEvent, QSize, Qt
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QPushButton, QDialogButtonBox, QMessageBox, QTableWidget, QHeaderView
+from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QPushButton, QDialogButtonBox, QMessageBox, QTableWidget, QHeaderView
 
 from ...i18n import tr
 from . import design
@@ -191,11 +191,22 @@ class DialogPresentation(QObject):
     def eventFilter(self, watched, event):
         if not QApplication.instance().property('v2Design'):
             return False
-        if event.type() == QEvent.Type.Show and isinstance(watched, QDialog) and not isinstance(watched, QFileDialog):
+        kind = event.type()
+        if kind == QEvent.Type.Show and isinstance(watched, QDialog) and not isinstance(watched, QFileDialog):
             adapt_dialog(watched)
-        elif event.type() == QEvent.Type.EnabledChange and isinstance(watched, QPushButton):
+        elif kind == QEvent.Type.EnabledChange and isinstance(watched, QPushButton):
             refresh_button(watched)
+        if kind in (QEvent.Type.Polish, QEvent.Type.EnabledChange) and isinstance(watched, QAbstractButton):
+            sync_hand_cursor(watched)
         return False
+
+
+def sync_hand_cursor(button):
+    """Every clickable control shows the pointing hand; a disabled one does not."""
+    if button.isEnabled():
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+    else:
+        button.unsetCursor()
 
 
 def install(app):
