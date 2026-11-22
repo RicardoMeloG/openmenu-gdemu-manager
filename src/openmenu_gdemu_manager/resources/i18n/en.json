@@ -162,7 +162,7 @@
     "dialog.provider.field.client_id": "Client ID",
     "dialog.provider.field.client_secret": "Client secret",
     "dialog.about.title": "About OpenMenu GDEMU Manager",
-    "dialog.about.body": "{app}\nVersion: {version}\n\nLocal Windows manager for Dreamcast OpenMenu/GDEMU games and covers.\n\nRepository:\n{repo}\n\nContact:\n{contact}\n\nLocal data:\n{data_dir}",
+    "dialog.about.body": "{app}\nVersion: {version}\n\nLocal Windows manager for Dreamcast OpenMenu/GDEMU games and covers.\n\nAuthor:\n{author} · {author_url}\n\nRepository:\n{repo}\n\nBugs and suggestions:\n{contact}\n\nSecurity:\n{security}\n\nLocal data:\n{data_dir}",
     "updates.checking": "Checking for updates...",
     "updates.available.title": "Update available",
     "updates.available": "A new version is available.\n\nCurrent: {current}\nLatest: {latest}\n\n{url}",

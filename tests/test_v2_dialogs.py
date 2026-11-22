@@ -322,3 +322,19 @@ def test_configuration_large_repeated_input_has_bounded_presentation(app, tmp_pa
     _capture(dialog,'setup-config-many-lines')
     assert path.read_text()==text
     _dispose(app,dialog)
+
+
+@pytest.mark.parametrize('language,labels', [
+    ('es', ('Autor:', 'Errores y sugerencias:', 'Seguridad')),
+    ('en', ('Author:', 'Bugs and suggestions:', 'Security')),
+])
+def test_about_names_the_author_and_where_to_report(app, language, labels):
+    set_language(language)
+    dialog = _show(app, AboutDialog())
+    text = '\n'.join(label.text() for label in dialog.findChildren(QLabel))
+    for expected in labels + ('Ricardo Melo', 'https://ricardomelog.com', '/issues', '/security/advisories/new'):
+        assert expected in text, expected
+    assert 'Contacto:' not in text and 'Contact:' not in text
+    body = max(dialog.findChildren(QLabel), key=lambda label: len(label.text()))
+    assert body.height() >= body.heightForWidth(body.width())
+    _dispose(app, dialog)

@@ -162,7 +162,7 @@
     "dialog.provider.field.client_id": "ID de cliente",
     "dialog.provider.field.client_secret": "Secreto de cliente",
     "dialog.about.title": "Acerca de OpenMenu GDEMU Manager",
-    "dialog.about.body": "{app}\nVersión: {version}\n\nAdministrador local para juegos y carátulas Dreamcast OpenMenu/GDEMU en Windows.\n\nRepositorio:\n{repo}\n\nContacto:\n{contact}\n\nDatos locales:\n{data_dir}",
+    "dialog.about.body": "{app}\nVersión: {version}\n\nAdministrador local para juegos y carátulas Dreamcast OpenMenu/GDEMU en Windows.\n\nAutor:\n{author} · {author_url}\n\nRepositorio:\n{repo}\n\nErrores y sugerencias:\n{contact}\n\nSeguridad:\n{security}\n\nDatos locales:\n{data_dir}",
     "updates.checking": "Buscando actualizaciones...",
     "updates.available.title": "Actualización disponible",
     "updates.available": "Hay una nueva versión disponible.\n\nActual: {current}\nÚltima: {latest}\n\n{url}",
