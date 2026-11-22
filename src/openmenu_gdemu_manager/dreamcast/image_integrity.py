@@ -28,9 +28,11 @@ def validate_gdi(descriptor):
         root=descriptor.parent.resolve()
         for expected,line in enumerate(lines[1:],1):
             fields=shlex.split(line)
-            if len(fields)!=6:raise ValueError('track fields')
+            # The trailing offset is optional: many dumps (TOSEC, Redump
+            # conversions) write five fields per track, meaning offset 0.
+            if len(fields) not in (5,6):raise ValueError('track fields')
             number,lba,kind,sector=int(fields[0]),int(fields[1]),int(fields[2]),int(fields[3])
-            offset=int(fields[5])
+            offset=int(fields[5]) if len(fields)==6 else 0
             if number!=expected or lba<0 or kind not in (0,4) or sector not in (2048,2336,2352) or offset<0:raise ValueError('track layout')
             name=fields[4]
             if Path(name).is_absolute() or ':' in name or '\\' in name:raise ValueError('track path')

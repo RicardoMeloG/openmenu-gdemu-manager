@@ -8,13 +8,48 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..core.models import GameItem
-from ..dreamcast.metadata import is_synthetic_slot_serial, read_disc_product_id
+from ..dreamcast.metadata import (
+    find_openmenu_track,
+    is_synthetic_slot_serial,
+    parse_openmenu_from_track,
+    read_disc_product_id,
+)
 from ..dreamcast.sd_writer import copy_game_source, source_size, write_name_txt
 from .sd_registry import registry_dir
 from ..i18n import tr
 
 
 ProgressCallback = Callable[[int, int, str, str], None]
+
+# Room for the menu rebuild (01.new is copied next to 01) and file-system overhead.
+SPACE_MARGIN_BYTES = 64 * 1024 * 1024
+# Each new game adds its cover to menu 01 (a 256 x 256 PVR in BOX.DAT plus its
+# icon); this rounds that up generously.
+COVER_BYTES_PER_GAME = 256 * 1024
+
+
+class InsufficientSpaceError(OSError):
+    """Raised before any SD change when the new games cannot fit."""
+
+
+def free_space(path: Path) -> int:
+    return shutil.disk_usage(str(path)).free
+
+
+def folder_size(path: Path) -> int:
+    path = Path(path)
+    if not path.exists():
+        return 0
+    return path.stat().st_size if path.is_file() else source_size(path)
+
+
+def format_bytes(value: int) -> str:
+    # A no-break space keeps a figure and its unit on the same line.
+    if value <= 0:
+        return "0 MB"
+    if value >= 1024 ** 3:
+        return f"{value / 1024 ** 3:.1f} GB"
+    return f"{max(1, round(value / 1024 ** 2))} MB"
 
 
 @dataclass(frozen=True)
@@ -131,7 +166,40 @@ class SdSlotTransactionService:
     def can_complete_recovery(self) -> bool:
         if not self.can_auto_recover():return False
         state=self._read_state_strict()
-        return not state.get('rollback') and state.get('stage')!='recovering_revert'
+        if state.get('rollback') or state.get('stage')=='recovering_revert':return False
+        # Folders are final but the menu may still describe the old layout:
+        # completing is only correct when 01 already lists the new one.
+        if state.get('stage')=='slots_published':return self.menu_matches_plan()
+        return True
+
+    def menu_out_of_date(self) -> bool:
+        """Folders were published but menu 01 was never rebuilt for them."""
+        try:
+            return self._read_state_strict().get('stage')=='slots_published' and not self.menu_matches_plan()
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return False
+
+    def menu_matches_plan(self) -> bool:
+        """True when 01 already lists exactly the final layout of this plan."""
+        plan=self._read_plan()
+        try:
+            menu=parse_openmenu_from_track(find_openmenu_track(self.root_path))
+        except OSError:
+            return False
+        expected={int(entry.new_slot):entry.name for entry in plan.entries if entry.action!='delete'}
+        listed={slot:data.get('name','') for slot,data in menu.items() if slot!=1}
+        if set(listed)!=set(expected):return False
+        # The rebuilder writes names as latin-1 with replacement characters.
+        return all(listed[slot].strip()==name.encode('latin-1','replace').decode('latin-1').strip()
+                   for slot,name in expected.items())
+
+    def mark_completed(self, **extra: Any) -> None:
+        """Close the transaction once menu 01 was rebuilt for the published slots."""
+        state=self._read_state_strict()
+        if state.get('stage')!='slots_published':
+            raise ValueError('Transaction is not waiting for its menu')
+        evidence={key:state[key] for key in ('deleted','moved','added','created_slots') if key in state}
+        self._write_state('completed',**evidence,**extra)
 
     def execute(
         self,
@@ -139,11 +207,15 @@ class SdSlotTransactionService:
         games: list[GameItem],
         progress: ProgressCallback | None = None,
     ) -> SlotTransactionResult:
+        # The in-memory plan must satisfy the same rules recovery applies to
+        # plan.json, or a failure would leave a transaction nobody can resume.
+        self._validate_plan_entries(plan)
         self._validate_plan_paths(plan)
         ensure_no_incomplete_transactions(self.root_path)
         if self.source_validator:
             for entry in plan.additions:
                 self.source_validator(Path(entry.source_path))
+        self.ensure_space_for(plan)
         self.transaction_dir.mkdir(parents=True, exist_ok=True)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.add_dir.mkdir(parents=True, exist_ok=True)
@@ -243,8 +315,11 @@ class SdSlotTransactionService:
                 if game.folder:
                     write_name_txt(Path(game.folder), game.name)
 
+            # Not "completed": menu 01 still describes the old layout. The
+            # caller closes the transaction with mark_completed() after the
+            # rebuild, so a failed rebuild stays incomplete and recoverable.
             self._write_state(
-                "completed",
+                "slots_published",
                 deleted=deleted,
                 moved=moved,
                 added=added,
@@ -264,6 +339,37 @@ class SdSlotTransactionService:
                               added=added, created_slots=sorted(created_slots))
             raise
 
+    def required_space(self, plan: SlotTransactionPlan) -> int:
+        """Bytes the save adds to the SD. Moves are renames; deletions go to
+        the internal trash on the same SD, so they free nothing."""
+        if not plan.additions:
+            return 0
+        games = sum(source_size(Path(entry.source_path)) for entry in plan.additions)
+        covers = len(plan.additions) * COVER_BYTES_PER_GAME
+        return games + covers + folder_size(self.root_path / "01") + SPACE_MARGIN_BYTES
+
+    def ensure_space_for(self, plan: SlotTransactionPlan) -> None:
+        needed = self.required_space(plan)
+        if not needed:
+            return
+        try:
+            free = free_space(self.root_path)
+        except OSError:
+            # Unknown free space must not block a save; the copy itself still fails safely.
+            return
+        if needed <= free:
+            return
+        message = tr(
+            "slot_space.insufficient",
+            needed=format_bytes(needed),
+            free=format_bytes(free),
+            missing=format_bytes(needed - free),
+        )
+        trash = folder_size(registry_dir(self.root_path) / "trash")
+        if trash:
+            message += "\n\n" + tr("slot_space.trash_hint", trash=format_bytes(trash))
+        raise InsufficientSpaceError(message)
+
     def complete_from_state(self) -> None:
         self._validate_path_containment()
         plan = self._read_plan()
@@ -271,6 +377,15 @@ class SdSlotTransactionService:
         state = self._read_state_strict()
         if state.get('rollback') or state.get('stage')=='recovering_revert':
             raise RuntimeError(tr('slot_recovery.revert_in_progress'))
+        if state.get('stage')=='slots_published':
+            # Every folder is already final; only the menu decides the outcome.
+            if not self.menu_matches_plan():
+                raise RuntimeError(tr('slot_recovery.menu_not_rebuilt', path=self.transaction_dir))
+            for entry in plan.entries:
+                if entry.action!='delete' and not self._slot_folder(int(entry.new_slot)).is_dir():
+                    raise FileNotFoundError(f"Falta el slot final: {entry.new_slot}")
+            self.mark_completed(recovered=True)
+            return
         created_slots = {int(value) for value in state.get("created_slots", [])}
         moved = list(state.get("moved", []))
         moved_slots = {int(entry["old_slot"]) for entry in moved}
@@ -457,6 +572,11 @@ class SdSlotTransactionService:
             operation_id=str(payload["operation_id"]),
             entries=[SlotPlanEntry(**entry) for entry in payload.get("entries", [])],
         )
+        self._validate_plan_entries(plan)
+        return plan
+
+    @staticmethod
+    def _validate_plan_entries(plan: SlotTransactionPlan) -> None:
         old_slots=set();new_slots=set()
         for entry in plan.entries:
             if entry.action not in {'add','delete','move','keep'}:raise ValueError('Invalid transaction action')
@@ -467,7 +587,6 @@ class SdSlotTransactionService:
                 new_slots.add(entry.new_slot)
             elif entry.new_slot is not None:raise ValueError('Invalid deletion target')
             if entry.action=='keep' and entry.old_slot!=entry.new_slot:raise ValueError('Invalid kept slot')
-        return plan
 
     def _read_state(self) -> dict[str, Any]:
         try:
@@ -477,7 +596,7 @@ class SdSlotTransactionService:
 
     def _read_state_strict(self) -> dict[str, Any]:
         state=json.loads((self.transaction_dir / "state.json").read_text(encoding="utf-8"))
-        stages={'planned','deleted_to_trash','moved_to_temp','added_to_temp','publishing','moved_to_final','completed','failed','recovering_complete','recovering_revert','reverted'}
+        stages={'planned','deleted_to_trash','moved_to_temp','added_to_temp','publishing','moved_to_final','slots_published','completed','failed','recovering_complete','recovering_revert','reverted'}
         if not isinstance(state,dict) or state.get('operation_id')!=self.operation_id or state.get('stage') not in stages:
             raise ValueError('Invalid transaction state')
         plan=self._read_plan()

@@ -68,6 +68,7 @@ results separately from local tests.
 - Record relevant `GDEMU.ini` settings and image identity/hash alongside the console result.
 - Mark hardware launch validation pending if no console test was performed; never infer it from passing PC tests.
 - For large operations, rescan the SD on PC after the console test and confirm no coherence warning remains.
+- With more than 126 games (folders beyond 127, allowed since the cap moved to 999), confirm OpenMenu lists every game and that one game in a folder above 127 launches.
 
 ## GitHub release
 

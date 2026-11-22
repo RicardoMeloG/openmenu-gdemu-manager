@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import logging
 from ...app.logger import logged_operation
-from math import ceil
+from ...core.image_quality import NORMALIZED_SIZE
+from math import ceil, floor
 from pathlib import Path
 from urllib.parse import urlencode
 
-from PySide6.QtCore import Qt, QTimer, QSize, QPointF, Signal, QUrl
+from PySide6.QtCore import Qt, QTimer, QSize, QPointF, Signal, QUrl, QEvent
 from PySide6.QtGui import QPixmap, QDesktopServices, QPainter, QColor
 from PySide6.QtWidgets import QApplication, QDialog, QWidget, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QLineEdit, QStackedWidget, QSizePolicy, QGraphicsView, QGraphicsScene, QComboBox, QMenu, QLayout
 
@@ -235,14 +236,21 @@ class Gallery(QWidget):
             self.populate()
 
 
+ZOOM_STEP = 25
+ZOOM_MIN = 25
+ZOOM_MAX = 800
+
+
 class ImageView(QGraphicsView):
     moved = Signal(object)
+    fit_changed = Signal()
 
     def __init__(self, pixmap, name):
         super().__init__()
         self.setAccessibleName(name)
         self.source = pixmap
         self.normalized_source = None
+        self.normalized = False
         self.scene_ = QGraphicsScene(self)
         self.setScene(self.scene_)
         self.item = self.scene_.addPixmap(pixmap)
@@ -255,8 +263,16 @@ class ImageView(QGraphicsView):
         self.horizontalScrollBar().valueChanged.connect(lambda: self.moved.emit(self))
         self.verticalScrollBar().valueChanged.connect(lambda: self.moved.emit(self))
 
+    def pixel_ratio(self):
+        return float(self.devicePixelRatioF()) or 1.0
+
+    def effective_percent(self):
+        """Screen pixels drawn per image pixel, as a percentage."""
+        return self.transform().m11()*self.pixel_ratio()*100
+
     def update_zoom(self, zoom, normalized=False):
         self.zoom = zoom
+        self.normalized = normalized
         pm=self.source
         if normalized:
             pm=self.normalized_source or self.source
@@ -265,13 +281,24 @@ class ImageView(QGraphicsView):
         if zoom == "fit":
             self.fitInView(self.item, Qt.AspectRatioMode.KeepAspectRatio)
         else:
+            # 100 % is one image pixel per physical screen pixel, so Windows
+            # display scaling does not stretch the cover being inspected.
+            factor=zoom/(100*self.pixel_ratio())
             self.resetTransform()
-            self.scale(zoom/100, zoom/100)
+            self.scale(factor, factor)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if self.zoom == "fit":
             self.fitInView(self.item, Qt.AspectRatioMode.KeepAspectRatio)
+            self.fit_changed.emit()
+
+    def event(self, event):
+        handled=super().event(event)
+        if event.type() == QEvent.Type.DevicePixelRatioChange:
+            self.update_zoom(self.zoom, self.normalized)
+            self.fit_changed.emit()
+        return handled
 
 
 class Viewer(QWidget):
@@ -290,12 +317,12 @@ class Viewer(QWidget):
         root.setContentsMargins(12,12,12,12)
         tools = QHBoxLayout()
         tools.setSpacing(4)
-        for action, cb in (("fit",lambda:self.set_zoom("fit")), ("actual_size",lambda:self.set_zoom(100)), ("zoom_out",lambda:self.set_zoom(max(25,(100 if self.zoom=='fit' else self.zoom)-25)))):
+        for action, cb in (("fit",lambda:self.set_zoom("fit")), ("actual_size",lambda:self.set_zoom(100)), ("zoom_out",lambda:self.step_zoom(-1))):
             tools.addWidget(Button(action, cb, compact=True))
         self.zoom_label = label(tr("full_view"), muted=True)
-        self.zoom_label.setMinimumWidth(85)
+        self.zoom_label.setMinimumWidth(self.zoom_label.fontMetrics().horizontalAdvance(tr("full_view_percent",percent=888))+12)
         tools.addWidget(self.zoom_label)
-        tools.addWidget(Button("zoom_in",lambda:self.set_zoom(min(400,(100 if self.zoom=='fit' else self.zoom)+25)), compact=True))
+        tools.addWidget(Button("zoom_in",lambda:self.step_zoom(1), compact=True))
         tools.addStretch()
         tools.addWidget(Button("image_source",lambda:self.set_mode(False),compact=True))
         tools.addWidget(Button("normalized",lambda:self.set_mode(True),compact=True))
@@ -330,6 +357,7 @@ class Viewer(QWidget):
             if not ws.store.images[key].get('failed'):
                 view.normalized_source=ws.normalized_pixmap(key)
             view.moved.connect(self.sync_pan)
+            view.fit_changed.connect(self.refresh_zoom_label)
             self.views.append(view)
             self.panels.append(pane)
             column.addWidget(view, 1)
@@ -380,7 +408,33 @@ class Viewer(QWidget):
         for view in self.views:
             view.update_zoom(zoom, self.normalized)
         self.syncing = False
-        self.zoom_label.setText(tr("full_view") if zoom=='fit' else f"{zoom} %")
+        self.refresh_zoom_label()
+
+    def fit_percent(self):
+        """Real percentage of the fitted view, or None when the views differ."""
+        values={round(view.effective_percent()) for view in self.views if view.isVisible() and not view.item.pixmap().isNull()}
+        return values.pop() if len(values)==1 else None
+
+    def refresh_zoom_label(self):
+        if self.zoom != 'fit':
+            self.zoom_label.setText(f"{self.zoom} %")
+            return
+        percent=self.fit_percent()
+        self.zoom_label.setText(tr("full_view") if percent is None else tr("full_view_percent",percent=percent))
+
+    def step_zoom(self, direction):
+        # From the fitted view, step from what is really on screen so that
+        # zooming in never shrinks the image and zooming out never enlarges it.
+        current=self.zoom
+        if current == 'fit':
+            current=self.views[0].effective_percent() if self.views else 100
+        if direction > 0:
+            target=min(ZOOM_MAX,(floor(current/ZOOM_STEP)+1)*ZOOM_STEP)
+            if target <= current:return
+        else:
+            target=max(ZOOM_MIN,(ceil(current/ZOOM_STEP)-1)*ZOOM_STEP)
+            if target >= current:return
+        self.set_zoom(target)
 
     def set_mode(self, normalized):
         self.normalized = normalized
@@ -543,12 +597,21 @@ class CoverWorkspace(QDialog):
         if result=='confirm_low':
             self.owner.confirm(tr('low_title'),tr('confirm_low'),lambda:self.confirm_choice(key),self)
             return
-        self.message(tr('image_error' if result=='decode_error' else result))
+        self.message(self.choice_message(result,key))
         self.refresh()
 
     def confirm_choice(self,key):
-        self.message(tr(self.store.choose(self.game,key,True)))
+        self.message(self.choice_message(self.store.choose(self.game,key,True),key))
         self.refresh()
+
+    def choice_message(self,result,key):
+        if result=='decode_error':return tr('image_error')
+        item=self.store.images.get(key,{})
+        width,height=item.get('width',0),item.get('height',0)
+        if result=='chosen' and max(width,height)>NORMALIZED_SIZE:
+            # OpenMenu stores every cover at 256 x 256; say so before saving.
+            return tr('chosen_resized',width=width,height=height,size=NORMALIZED_SIZE)
+        return tr(result)
 
     def retry_image(self,key):
         viewer=self.stack.currentWidget()

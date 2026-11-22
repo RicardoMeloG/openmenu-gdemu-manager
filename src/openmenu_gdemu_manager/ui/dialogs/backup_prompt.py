@@ -205,13 +205,11 @@ class BackupPromptDialog(QDialog):
         if self._backup_active:
             return
         if self.destination.exists() and any(self.destination.iterdir()):
-            if not _confirm_message(
-                self,
+            if not self._confirm_message(
                 tr("dialog.backup.folder_confirm", path=self.destination),
             ):
                 return
-        if not _confirm_message(
-            self,
+        if not self._confirm_message(
             tr("dialog.backup.confirm", path=self.destination),
         ):
             return
@@ -274,8 +272,7 @@ class BackupPromptDialog(QDialog):
     def skip_backup(self):
         if self._backup_active:
             return
-        if not _confirm_message(
-            self,
+        if not self._confirm_message(
             tr("dialog.backup.skip_confirm"),
             tr("dialog.backup.confirm_skip_action"),
         ):
@@ -283,6 +280,10 @@ class BackupPromptDialog(QDialog):
         self.settings = set_backup_decision(self.settings, self.diagnostic, "skipped")
         save_settings(self.settings)
         self.accept()
+
+    def _confirm_message(self, text: str, accept_label: str | None = None) -> bool:
+        # Presentation hook: legacy behavior stays unchanged; v2 owns its dialog.
+        return _confirm_message(self, text, accept_label)
 
     def _set_busy(self, busy: bool, message: str):
         self.progress.setVisible(busy)

@@ -115,3 +115,37 @@ def _ensure_not_inside_source(source: Path, destination: Path) -> None:
     except ValueError:
         return
     raise BackupError("El respaldo no puede quedar dentro de la SD/origen.")
+
+
+def completed_backup_exists(settings: dict, diagnostic: StorageDiagnostic) -> bool:
+    """PC decision backed by a complete manifest, without writing source metadata."""
+    decision=backup_decision(settings,diagnostic)
+    if not decision or decision.get('decision')!='backed_up':
+        return False
+    try:
+        destination=Path(decision.get('destination','')).resolve()
+        source=Path(diagnostic.root).resolve()
+        if destination.is_relative_to(source):
+            return False
+        path=destination/'backup_manifest.json'
+        if path.stat().st_size>16*1024*1024:
+            return False
+        manifest=json.loads(path.read_text(encoding='utf-8'))
+        if Path(manifest['source']).resolve()!=source or Path(manifest['destination']).resolve()!=destination:
+            return False
+        entries=manifest['files']
+        if not isinstance(entries,list) or manifest['file_count']!=len(entries):
+            return False
+        total=0
+        seen=set()
+        for entry in entries:
+            relative=Path(entry['path'])
+            file=(destination/relative).resolve()
+            size=entry['bytes']
+            if relative.is_absolute() or not file.is_relative_to(destination) or file in seen or not isinstance(size,int) or size<0 or not file.is_file() or file.stat().st_size!=size:
+                return False
+            seen.add(file)
+            total+=size
+        return total==manifest['total_bytes']
+    except (OSError,ValueError,KeyError,TypeError):
+        return False

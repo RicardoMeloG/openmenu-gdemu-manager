@@ -22,7 +22,11 @@ PVRT_DATA_SIZE = 131080
 PX_FORMAT = 0x01
 DATA_TYPE = 0x01
 WIDTH = HEIGHT = 256
-MAX_USER_SLOT = 127
+# Highest game folder the app creates. It used to be 127 with no documented
+# GDEMU/openMenu reason; 999 is only the end of three-digit folder names, so in
+# practice the card's free space limits a collection first. More than 126 games
+# on real hardware is not yet verified.
+MAX_USER_SLOT = 999
 DEFAULT_MENU_ENTRY = {
     "name": "openMenu",
     "disc": "1/1",
@@ -35,7 +39,10 @@ DEFAULT_MENU_ENTRY = {
 
 
 def first_free_slot(games: list[GameItem], max_slot: int = MAX_USER_SLOT) -> int | None:
-    used = {game.slot for game in games if not game.pending_delete}
+    # A slot pending deletion is still occupied until the save runs. Reusing it
+    # gives the addition the same original slot as the deletion, a plan that
+    # recovery rejects, and two games under one slot if the deletion is undone.
+    used = {game.slot for game in games}
     for slot in range(2, max_slot + 1):
         if slot not in used:
             return slot

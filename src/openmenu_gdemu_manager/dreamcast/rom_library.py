@@ -1,13 +1,17 @@
 ﻿from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..core.matching import normalize
 from .metadata import (
     detect_media_type,
     is_descriptive_game_name,
+    is_plausible_product_id,
     parse_openmenu_ini,
     read_disc_internal_name_from_image,
+    read_disc_number,
+    read_disc_number_from_image,
     read_disc_product_id,
     read_disc_product_id_from_image,
     read_name_txt,
@@ -21,7 +25,6 @@ from ..config.settings import configured_rom_dirs, supported_media_types
 def scan_rom_library(settings: dict, existing_games: list[GameItem]) -> list[RomLibraryEntry]:
     supported = supported_media_types(settings)
     existing_names = {normalize(game.name) for game in existing_games}
-    existing_products = {game.product_id.upper() for game in existing_games if game.product_id}
     known = _known_metadata()
     results: dict[str, RomLibraryEntry] = {}
     for root in configured_rom_dirs(settings):
@@ -33,12 +36,28 @@ def scan_rom_library(settings: dict, existing_games: list[GameItem]) -> list[Rom
             entry = inspect_source(path, supported, known)
             if entry is None:
                 continue
-            entry.existing_match = bool(
-                normalize(entry.name) in existing_names
-                or (entry.product_id and entry.product_id.upper() in existing_products)
+            entry.existing_match = normalize(entry.name) in existing_names or any(
+                same_product_disc(entry.product_id, entry.disc, game) for game in existing_games
             )
             results.setdefault(entry.source_path.lower(), entry)
     return sorted(results.values(), key=lambda item: (item.existing_match, item.name.lower()))
+
+
+def _disc_index(disc: str) -> int | None:
+    match = re.match(r"\s*(\d+)", disc or "")
+    return int(match.group(1)) if match else None
+
+
+def same_product_disc(product_id: str, disc: str, game: GameItem) -> bool:
+    """Same product ID and not provably another disc of a multi-disc game.
+
+    Every disc of a game shares its product ID, so the disc number decides;
+    when either side does not know its disc, a product match still counts.
+    """
+    if not product_id or not game.product_id or product_id.strip().upper() != game.product_id.strip().upper():
+        return False
+    mine, theirs = _disc_index(disc), _disc_index(game.disc)
+    return mine is None or theirs is None or mine == theirs
 
 
 def inspect_source(path: Path, supported: set[str] | None = None, known: dict[str, dict[str, str]] | None = None) -> RomLibraryEntry | None:
@@ -54,14 +73,14 @@ def inspect_source(path: Path, supported: set[str] | None = None, known: dict[st
         if suffix == ".cdi" and "CDI" in supported:
             name = _name_from_image_file(path)
             metadata = known.get(normalize(name), {})
-            product_id = metadata.get("product", "") or read_disc_product_id_from_image(path)
+            product_id = _known_product(metadata) or read_disc_product_id_from_image(path)
             return RomLibraryEntry(
                 name=name,
                 media_type="CDI",
                 source_path=str(path),
                 product_id=product_id,
                 region=metadata.get("region", ""),
-                disc=metadata.get("disc", "1/1"),
+                disc=read_disc_number_from_image(path) or metadata.get("disc", "1/1"),
                 vga=metadata.get("vga", "1"),
                 version=metadata.get("version", ""),
                 date=metadata.get("date", ""),
@@ -81,18 +100,24 @@ def _entry_from_folder(folder: Path, known: dict[str, dict[str, str]]) -> RomLib
     slot = int(folder.name) if folder.name.isdigit() else 0
     name = resolve_game_display_name(folder, "", slot).name
     metadata = known.get(normalize(name), {})
-    product_id = metadata.get("product", "") or read_disc_product_id(folder)
+    product_id = _known_product(metadata) or read_disc_product_id(folder)
     return RomLibraryEntry(
         name=name,
         media_type=media_type,
         source_path=str(folder),
         product_id=product_id,
         region=metadata.get("region", ""),
-        disc=metadata.get("disc", "1/1"),
+        disc=read_disc_number(folder) or metadata.get("disc", "1/1"),
         vga=metadata.get("vga", "1"),
         version=metadata.get("version", ""),
         date=metadata.get("date", ""),
     )
+
+
+def _known_product(metadata: dict[str, str]) -> str:
+    # The bundled list has misread serials (e.g. Shenmue); the disc header wins then.
+    product = metadata.get("product", "")
+    return product if is_plausible_product_id(product) else ""
 
 
 def _name_from_image_file(path: Path) -> str:

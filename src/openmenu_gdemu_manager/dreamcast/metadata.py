@@ -3,9 +3,12 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from .cdi import CDIError, inspect_cdi
+
 IP_BIN_MAGIC = b"SEGA SEGAKATANA"
 IP_BIN_HEADER_SIZE = 0x100
 IP_BIN_SEARCH_LIMIT = 8 * 1024 * 1024
+IP_BIN_MAX_CANDIDATES = 32
 MEDIA_NAME_SUFFIXES = {".cdi", ".gdi", ".iso", ".bin"}
 PREFERRED_MEDIA_NAME_SUFFIXES = {".cdi", ".gdi"}
 GENERIC_NAME_TOKENS = {
@@ -193,10 +196,16 @@ def is_synthetic_slot_serial(serial: str | None) -> bool:
     return bool(re.fullmatch(r"SLOT\d{1,3}", (serial or "").strip().upper()))
 
 
+def is_plausible_product_id(serial: str | None) -> bool:
+    """False for empty values and for bytes a menu got from a misread header."""
+    text = (serial or "").strip()
+    return bool(text) and all(0x20 <= ord(char) <= 0x7E for char in text) and any(char.isalnum() for char in text)
+
+
 def menu_product_id_for_slot(slot: int, raw_product_id: str, disc_product_id: str = "") -> str:
     raw_product_id = (raw_product_id or "").strip()
     disc_product_id = (disc_product_id or "").strip()
-    if is_synthetic_slot_serial(raw_product_id) or not raw_product_id:
+    if is_synthetic_slot_serial(raw_product_id) or not is_plausible_product_id(raw_product_id):
         return disc_product_id or f"SLOT{slot:03d}"
     return raw_product_id
 
@@ -206,7 +215,7 @@ def artwork_serial_candidates(slot: int, raw_product_id: str, menu_product_id: s
     for serial in (
         raw_product_id,
         menu_product_id,
-        f"SLOT{slot:03d}" if is_synthetic_slot_serial(raw_product_id) or not raw_product_id else "",
+        f"SLOT{slot:03d}" if is_synthetic_slot_serial(raw_product_id) or not is_plausible_product_id(raw_product_id) else "",
         disc_product_id,
     ):
         normalized = _normalize_serial(serial)
@@ -232,45 +241,105 @@ def _gdi_data_tracks(folder: Path, gdi_path: Path) -> list[Path]:
     return [folder / name for name in _declared_data_tracks(gdi_path)]
 
 
-def _read_ip_bin_product(track_path: Path) -> str:
-    header = _read_ip_bin_header(track_path, 0x60)
-    if len(header) < 0x50:
+def _ip_bin_field(header: bytes, start: int, end: int) -> str:
+    """Printable ASCII field, or "" when the bytes cannot be a real IP.BIN value."""
+    raw = header[start:end].rstrip(b"\x00 ")
+    if not raw or any(byte < 0x20 or byte > 0x7E for byte in raw):
         return ""
-    return header[0x40:0x4A].decode("ascii", errors="ignore").strip().replace("-", "")
+    text = raw.decode("ascii").strip()
+    return text if any(char.isalnum() for char in text) else ""
+
+
+def _read_ip_bin_product(track_path: Path) -> str:
+    for header in _ip_bin_headers(track_path):
+        if len(header) >= 0x4A:
+            value = _ip_bin_field(header, 0x40, 0x4A)
+            if value:
+                return value.replace("-", "")
+    return ""
+
+
+_DISC_FIELD = re.compile(r"ROM\s*(\d{1,2})\s*/\s*(\d{1,2})")
+
+
+def _read_ip_bin_disc(track_path: Path) -> str:
+    """Disc number as "n/m" from the device field (e.g. "GD-ROM2/3"), or ""."""
+    for header in _ip_bin_headers(track_path):
+        if len(header) >= 0x30:
+            match = _DISC_FIELD.search(_ip_bin_field(header, 0x20, 0x30))
+            if match and 1 <= int(match.group(1)) <= int(match.group(2)):
+                return f"{int(match.group(1))}/{int(match.group(2))}"
+    return ""
+
+
+def read_disc_number(folder: Path | None) -> str:
+    return _read_first_disc_header_field(folder, _read_ip_bin_disc)
+
+
+def read_disc_number_from_image(path: Path | None) -> str:
+    return _read_ip_bin_disc(Path(path)) if path is not None else ""
 
 
 def _read_ip_bin_internal_name(track_path: Path) -> str:
-    header = _read_ip_bin_header(track_path, 0x100)
-    if len(header) < 0x100:
-        return ""
-    return " ".join(header[0x80:0x100].decode("ascii", errors="ignore").split())
+    for header in _ip_bin_headers(track_path):
+        if len(header) >= 0x100:
+            value = _ip_bin_field(header, 0x80, 0x100)
+            if value:
+                return " ".join(value.split())
+    return ""
 
 
-def _read_ip_bin_header(track_path: Path, size: int) -> bytes:
+def _ip_bin_headers(track_path: Path) -> tuple[bytes, ...]:
     track_path = Path(track_path)
     try:
         stat = track_path.stat()
     except OSError:
-        return b""
-    header = _read_ip_bin_header_cached(str(track_path), stat.st_mtime_ns, stat.st_size)
-    if len(header) < size:
-        return b""
-    return header[:size]
+        return ()
+    return _ip_bin_headers_cached(str(track_path), stat.st_mtime_ns, stat.st_size)
 
 
 @lru_cache(maxsize=512)
-def _read_ip_bin_header_cached(path: str, mtime_ns: int, file_size: int) -> bytes:
+def _ip_bin_headers_cached(path: str, mtime_ns: int, file_size: int) -> tuple[bytes, ...]:
+    """Candidate headers, most reliable first.
+
+    The magic string also appears in unrelated data (a CDI's first session can
+    hold one with null fields), so callers validate each field and fall back
+    to the next candidate instead of trusting the first match.
+    """
     del mtime_ns
-    read_size = min(max(IP_BIN_HEADER_SIZE, file_size), IP_BIN_SEARCH_LIMIT)
+    headers: list[bytes] = []
     try:
         with Path(path).open("rb") as handle:
-            data = handle.read(read_size)
+            if path.lower().endswith(".cdi"):
+                boot = _cdi_boot_header(Path(path), handle)
+                if boot:
+                    headers.append(boot)
+            handle.seek(0)
+            data = handle.read(min(max(IP_BIN_HEADER_SIZE, file_size), IP_BIN_SEARCH_LIMIT))
     except OSError:
-        return b""
+        return tuple(headers)
     start = data.find(IP_BIN_MAGIC)
-    if start < 0:
+    while start >= 0 and len(headers) < IP_BIN_MAX_CANDIDATES:
+        headers.append(data[start:start + IP_BIN_HEADER_SIZE])
+        start = data.find(IP_BIN_MAGIC, start + 1)
+    return tuple(headers)
+
+
+def _cdi_boot_header(path: Path, handle) -> bytes:
+    """A self-boot CDI keeps IP.BIN at the start of the last session's first data track."""
+    try:
+        inspection = inspect_cdi(path)
+    except CDIError:
         return b""
-    return data[start:start + IP_BIN_HEADER_SIZE]
+    last_session = max(track.session for track in inspection.tracks)
+    for track in inspection.tracks:
+        if track.session == last_session and track.mode in (1, 2):
+            pregap = track.indices[0] if track.indices else 0
+            handle.seek(track.byte_offset + pregap * track.sector_size)
+            data = handle.read(2 * track.sector_size)
+            start = data.find(IP_BIN_MAGIC)
+            return data[start:start + IP_BIN_HEADER_SIZE] if start >= 0 else b""
+    return b""
 
 
 def _normalize_serial(serial: str | None) -> str:

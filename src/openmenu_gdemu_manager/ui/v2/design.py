@@ -63,8 +63,13 @@ def apply_theme(app, value="light"):
     QLabel {{ background: transparent; }}
     QLabel[muted=true] {{ color: {c['muted']}; font-size: {METRICS['font-metadata']}px; }}
     QLabel[heading=true] {{ font-size: {METRICS['font-title']}px; font-weight: 600; }}
-    QLabel[collectionHeading=true] {{ font-size: {METRICS['font-collection-heading']}px; border-left: 3px solid {c['accent']}; padding-left: {METRICS['space-2']}px; }}
     QLabel[title=true] {{ font-size: {METRICS['font-body']}px; font-weight: 600; }}
+    QLineEdit#PreparationPath {{background:transparent;border:none;padding:0;min-height:24px;}}
+    QLineEdit#PreparationPath:focus {{border:1px solid {c['focus']};border-radius:4px;}}
+    QLabel[preparationHeading=true] {{ font-size: {METRICS['font-preparation-heading']}px; font-weight: 700; }}
+    QLabel[preparationTitle=true] {{ font-size: 18px; font-weight: 600; }}
+    QLabel[tone=info] {{ color: {c['info']}; }}
+    QLabel[tone=brand] {{ color: {c['accent']}; }}
     QLabel[tone=success] {{ color: {c['success']}; }}
     QLabel[tone=warning] {{ color: {c['warning']}; }}
     QLabel[tone=danger] {{ color: {c['danger']}; }}
@@ -96,6 +101,7 @@ def apply_theme(app, value="light"):
     QPushButton[role=danger] {{ color: {c['danger']}; background: {c['danger_soft']}; border-color: {c['danger']}; }}
     QPushButton:checked {{ background: {c['accent_soft']}; border-color: {c['accent']}; color: {c['accent']}; }}
     QPushButton[attention=true] {{ border: 2px solid {c['success']}; background: {c['success_soft']}; }}
+    QPushButton[role=primary][attention=true] {{ color: {c['paper']}; background: {c['accent']}; border: 1px solid {c['accent']}; }}
     QPushButton:disabled {{ background: {c['soft']}; color: {c['muted']}; border-color: {c['line']}; font-weight: 400; }}
     QLineEdit, QComboBox {{ background: {c['paper']}; border: 1px solid {c['line']}; border-radius: 5px; padding: 6px 8px; min-height: 26px; font-size: 12px; }}
     QSpinBox {{ background: {c['paper']}; border: 1px solid {c['line']}; border-radius: 5px; padding: 4px 8px; min-height: 26px; }}
@@ -104,6 +110,7 @@ def apply_theme(app, value="light"):
     QProgressBar::chunk {{ background: {c['accent']}; border-radius: 4px; }}
     QTableWidget {{ background: {c['paper']}; gridline-color: {c['line']}; selection-background-color: {c['accent_soft']}; selection-color: {c['ink']}; border: 1px solid {c['line']}; }}
     QHeaderView::section {{ background: {c['surface']}; color: {c['muted']}; border: 0; border-bottom: 1px solid {c['line']}; padding: 6px; }}
+    QTableWidget#ImportTable QHeaderView::section {{ background: {c['paper']}; color: {c['ink']}; font-weight: 600; border: 0; border-bottom: 2px solid {c['line']}; padding: 8px 6px; }}
     QScrollArea {{ border: none; background: {c['surface']}; }}
     QScrollBar:vertical {{ width: 12px; background: {c['soft']}; margin: 0; }}
     QScrollBar::handle:vertical {{ background: {c['muted']}; border-radius: 5px; min-height: 28px; }}
@@ -168,6 +175,12 @@ class Button(QPushButton):
             self.clicked.connect(callback)
         self.refresh_icon()
 
+    def setText(self, text):
+        super().setText(text)
+        if text:
+            self.setAccessibleName(text.replace('&', ''))
+            self.setToolTip(text.replace('&', ''))
+
     def refresh_icon(self):
         c = colors()
         role = self.property("role")
@@ -192,7 +205,9 @@ class SelectionCheck(QCheckBox):
 
     def sizeHint(self):
         target = METRICS["selection-target"]
-        return QSize(target + (self.fontMetrics().horizontalAdvance(self.text()) + 4 if self.text() else 0), target)
+        # A filter chip keeps room on the right for its highlighted background.
+        tail = 12 if self.property("chip") else 4
+        return QSize(target + (self.fontMetrics().horizontalAdvance(self.text()) + tail if self.text() else 0), target)
 
     def hitButton(self, point):
         return self.rect().contains(point)
@@ -206,6 +221,11 @@ class SelectionCheck(QCheckBox):
         size = METRICS["selection-size"]
         rect = QRectF((METRICS["selection-target"] - size) / 2, (self.height() - size) / 2, size, size)
         p.setOpacity(1 if self.isEnabled() else .5)
+        if self.property("chip") and self.isChecked():
+            # An active filter is highlighted as a whole, not only by its box.
+            p.setPen(QPen(QColor(c["accent"]), 1))
+            p.setBrush(QColor(c["accent_soft"]))
+            p.drawRoundedRect(QRectF(.5, .5, self.width() - 1, self.height() - 1), METRICS["radius"], METRICS["radius"])
         p.setPen(QPen(QColor(c["accent"] if filled else c["muted"]), 1.5))
         p.setBrush(QColor(c["accent"] if filled else c["paper"]))
         p.drawRoundedRect(rect, 3, 3)
@@ -295,8 +315,8 @@ class TextLabel(QLabel):
         return QSize(0,hint.height())
 
 
-def label(text, *, muted=False, title=False, heading=False, wrap=False, tone=None):
-    item = TextLabel(text)
+def label(text, *, muted=False, title=False, heading=False, wrap=False, tone=None, label_type=TextLabel):
+    item = label_type(text)
     item.setProperty("muted", muted)
     item.setProperty("title", title)
     item.setProperty("heading", heading)

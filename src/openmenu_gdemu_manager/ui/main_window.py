@@ -751,7 +751,7 @@ class MainWindow(QMainWindow):
             return
         if diagnostic.legacy_menu_migratable:
             self.stop_busy()
-            if not registered_backup_exists(diagnostic.root):
+            if not self._has_registered_backup(diagnostic):
                 self.status.setText(tr("scan.backup_required"))
                 if not self.open_backup_prompt(diagnostic, force=True):
                     self._block_legacy_menu()
@@ -819,6 +819,8 @@ class MainWindow(QMainWindow):
         if can_auto_recover:
             if service.can_complete_recovery():
                 complete = message.addButton(tr("slot_recovery.complete"), QMessageBox.ButtonRole.AcceptRole)
+            elif service.menu_out_of_date():
+                message.setInformativeText(tr("slot_recovery.menu_not_rebuilt", path=tx_dir))
             else:
                 message.setInformativeText(tr("slot_recovery.revert_in_progress"))
             revert = message.addButton(tr("slot_recovery.revert"), QMessageBox.ButtonRole.DestructiveRole)
@@ -850,7 +852,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _handle_legacy_menu_upgrade(self, diagnostic: StorageDiagnostic):
-        has_backup = registered_backup_exists(diagnostic.root)
+        has_backup = self._has_registered_backup(diagnostic)
         dialog = LegacyMenuUpgradeDialog(has_backup, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             self._block_legacy_menu()
@@ -890,7 +892,7 @@ class MainWindow(QMainWindow):
         self.write_allowed = result.diagnostic.write_allowed
         self.read_only_reason = "" if self.write_allowed else result.diagnostic.reason
         self.backup_suggested_roots.add(str(result.diagnostic.root.resolve()))
-        if not registered_backup_exists(result.diagnostic.root):
+        if not self._has_registered_backup(result.diagnostic):
             self.settings = set_backup_decision(self.settings, result.diagnostic, "skipped")
             save_settings(self.settings)
         self.status.setText(tr("legacy_upgrade.success_status", count=result.num_items))
@@ -1119,7 +1121,7 @@ class MainWindow(QMainWindow):
         self.apply_filters()
         self.stop_busy()
         if added_games:
-            suffix = f" {skipped} omitidos por falta de slot." if skipped else ""
+            suffix = " " + tr("game.skipped_no_slot", count=skipped) if skipped else ""
             self.status.setText(tr("game.added_memory", count=len(added_games), suffix=suffix))
         elif skipped:
             QMessageBox.warning(self, APP_NAME, tr("game.no_slots"))
@@ -1869,6 +1871,9 @@ class MainWindow(QMainWindow):
         dialog = BackupPromptDialog(diagnostic, self, force=force, allow_skip=allow_skip)
         return dialog.exec() == QDialog.DialogCode.Accepted
 
+    def _has_registered_backup(self, diagnostic):
+        return registered_backup_exists(diagnostic.root)
+
     def _should_suggest_backup(self, diagnostic: StorageDiagnostic) -> bool:
         if not diagnostic.scan_allowed:
             return False
@@ -1882,7 +1887,7 @@ class MainWindow(QMainWindow):
         root_key = str(diagnostic.root.resolve())
         if root_key in self.backup_suggested_roots:
             return False
-        if registered_backup_exists(diagnostic.root):
+        if self._has_registered_backup(diagnostic):
             return False
         decision = backup_decision(self.settings, diagnostic)
         if decision and decision.get("decision") == "skipped":

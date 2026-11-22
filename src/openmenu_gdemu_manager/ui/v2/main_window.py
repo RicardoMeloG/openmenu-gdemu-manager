@@ -3,8 +3,9 @@ from pathlib import Path
 from ...config.settings import load_settings
 import copy
 import shiboken6
-from PySide6.QtCore import Qt,QSize,QTimer
-from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QHBoxLayout,QHeaderView,QDialog,QMessageBox
+from PySide6.QtCore import Qt,QSize,QTimer,QVariantAnimation,QEasingCurve,QAbstractAnimation
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QHBoxLayout,QHeaderView,QDialog,QMessageBox,QGraphicsDropShadowEffect
 from ... import APP_NAME
 from ...i18n import tr as legacy_tr
 from ...core.image_quality import analyze_image
@@ -16,9 +17,22 @@ from ..dialogs import ConfirmApplyDialog
 from ..theme import template_palette
 from . import design,catalog,configuration
 from .catalog import tr
-from .design import Button,DestinationButton,label,repolish
+from .design import Button,DestinationButton,SelectionCheck,label,repolish
 from .collection import CollectionModel,CollectionDelegate,CollectionHeader
 from .bridge import CoverHost,ProductionWorkspace
+
+
+def _animations_enabled():
+    """Windows 'Show animations in Windows' (SPI_GETCLIENTAREAANIMATION)."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        # The API writes a 4-byte BOOL; a 1-byte c_bool would be overrun.
+        value=wintypes.BOOL(1)
+        if ctypes.windll.user32.SystemParametersInfoW(0x1042,0,ctypes.byref(value),0):return bool(value.value)
+    except (AttributeError,OSError):
+        pass
+    return True
 
 
 class MainWindowV2(MainWindow):
@@ -41,29 +55,29 @@ class MainWindowV2(MainWindow):
         root=ThemeBackgroundWidget()
         root.setObjectName('Surface')
         layout=QVBoxLayout(root);layout.setContentsMargins(22,16,22,12);layout.setSpacing(12)
-        self.heading=label(tr('collection_title'))
-        self.heading.setProperty('collectionHeading',True)
-        layout.addWidget(self.heading)
-        self.subtitle=label(tr('collection_subtitle'),muted=True)
-        layout.addWidget(self.subtitle)
+        # No page title: this is the window's only screen and the title bar names
+        # the app, so the game list gets that height instead.
         toolbar=QHBoxLayout()
         self.destination=DestinationButton(self.pick_root,str(self.root_path),tr('destination_unknown'))
         toolbar.addWidget(self.destination,1)
         for button in (self.scan_button,self.add_game_button,self.save_changes_button):
             button.setParent(root);button.setStyleSheet('');button.setFixedHeight(42);toolbar.addWidget(button)
         layout.addLayout(toolbar)
-        config_row=QHBoxLayout()
-        self.configuration_note=label('',muted=True,wrap=True);config_row.addWidget(self.configuration_note,1)
+        # GDEMU.ini gets its own line only when it needs attention; otherwise a
+        # short status rides in the destination card and the details action
+        # shares the guidance row.
+        self.configuration_note=label('',muted=True,wrap=True);layout.addWidget(self.configuration_note)
         self.configuration_details_button=Button('info',self.show_configuration_details,text=legacy_tr('v2.gdemu_config.details_action'),compact=True)
-        config_row.addWidget(self.configuration_details_button)
-        layout.addLayout(config_row)
         # Keep the controller's path and browse handles, without duplicate chrome.
         for widget in (self.path_edit,self.browse_button):widget.setParent(root);widget.hide()
-        self.guidance=label('',wrap=True);self.guidance.setObjectName('Guidance');layout.addWidget(self.guidance)
+        guidance_row=QHBoxLayout()
+        self.guidance=label('',wrap=True);self.guidance.setObjectName('Guidance');guidance_row.addWidget(self.guidance,1)
+        guidance_row.addWidget(self.configuration_details_button);layout.addLayout(guidance_row)
         filters=QHBoxLayout()
         self.text_filter.setParent(root);self.text_filter.setFixedHeight(36);filters.addWidget(self.text_filter,1)
-        self.missing_button=Button('missing',self.toggle_missing,compact=True)
-        self.missing_button.setCheckable(True);filters.addWidget(self.missing_button)
+        # A checkbox, not a button: it is a filter, and its state must read at a glance.
+        self.missing_button=SelectionCheck(tr('missing_only',count=0));self.missing_button.setProperty('chip',True)
+        self.missing_button.setFixedHeight(36);self.missing_button.clicked.connect(self.toggle_missing);filters.addWidget(self.missing_button)
         for widget in (self.status_filter,self.bulk_mode_button,self.bulk_button):
             widget.setParent(root);widget.setStyleSheet('');widget.setFixedHeight(36);filters.addWidget(widget)
         layout.addLayout(filters)
@@ -86,7 +100,9 @@ class MainWindowV2(MainWindow):
         header=self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
         header.moveSection(header.visualIndex(GamesTableModel.C_SLOT),1)
-        for col,width in ((0,78),(1,68),(2,52),(5,110),(6,180),(8,120)):
+        # Cover column: 68 px thumbnail (row height 76 minus the delegate's 4 px
+        # inset) plus the delegate's 8 px side margins, as in the V5 mockup.
+        for col,width in ((0,78),(GamesTableModel.C_COVER,84),(GamesTableModel.C_SLOT,52),(5,110),(6,180),(8,120)):
             header.setSectionResizeMode(col,QHeaderView.ResizeMode.Fixed);self.table.setColumnWidth(col,width)
         header.setSectionResizeMode(3,QHeaderView.ResizeMode.Stretch)
         for col in (4,7):self.table.setColumnHidden(col,True)
@@ -109,8 +125,6 @@ class MainWindowV2(MainWindow):
     def retranslate_ui(self):
         super().retranslate_ui()
         if self._v2_ready:
-            self.heading.setText(tr('collection_title'));self.subtitle.setText(tr('collection_subtitle'))
-            self.missing_button.setText(catalog.action_label('missing'))
             for action in self.menuBar().actions():
                 if action.menu():action.menu().aboutToShow.connect(self.leave_bulk)
             self._refresh_controls()
@@ -155,10 +169,12 @@ class MainWindowV2(MainWindow):
         if not self.operation_running():self.destination.setEnabled(True)
         summary=self.diagnostic.summary if self.diagnostic else None
         subtitle=tr('destination_ready',filesystem=summary.filesystem or tr('local_folder'),free=f'{summary.free_bytes/1024**3:.1f}') if self.write_allowed and summary else tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else tr('destination_unknown')
-        self.destination.set_destination(str(self.root_path),subtitle)
         config=self.diagnostic.configuration if self.diagnostic else None
+        attention=bool(config and config.status in ('invalid','unreadable','review'))
+        if config and not attention:subtitle+=' · '+legacy_tr('v2.gdemu_config.short_'+config.status)
+        self.destination.set_destination(str(self.root_path),subtitle)
         self.configuration_note.setText(configuration.summary(config))
-        self.configuration_note.setVisible(config is not None)
+        self.configuration_note.setVisible(attention)
         self.configuration_details_button.setVisible(config is not None)
         self.configuration_details_button.setEnabled(config is not None and not self.operation_running())
         self.configuration_details_button.setText(legacy_tr('v2.gdemu_config.details_action'))
@@ -167,6 +183,11 @@ class MainWindowV2(MainWindow):
         repolish(self.configuration_note)
         self.guidance.setText(tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else tr('missing_guidance',count=missing) if missing else tr('all_covered') if self.games else tr('collection_empty') if self.diagnostic and self.write_allowed else tr('destination_unknown'))
         self.summary.setText(tr('collection_count',count=len(self.games),missing=missing))
+        caption=tr('missing_only',count=missing)
+        if self.missing_button.text()!=caption:
+            self.missing_button.setText(caption);self.missing_button.setAccessibleName(caption);self.missing_button.updateGeometry()
+        # Nothing to filter with every cover present, but an active filter must stay switchable off.
+        self.missing_button.setEnabled(bool(missing) or self.missing_button.isChecked())
         for button in (self.add_game_button,self.save_changes_button,self.bulk_mode_button):repolish(button)
         for button in (self.add_game_button,self.save_changes_button):
             primary=button.property('role')=='primary'
@@ -368,9 +389,58 @@ class MainWindowV2(MainWindow):
             self.start_scan()
         else:self.apply_filters()
 
+    # Pending-save emphasis (design option 02, "soft breathe"): one smooth
+    # orange halo instead of the legacy green blink, which barely showed on
+    # the orange primary button.
+    BREATH_MS=1800
+
+    def _update_save_button_state(self):
+        super()._update_save_button_state()
+        count=self.pending_change_count()
+        if count and self.write_allowed:self.save_changes_button.setText(tr('save_count',count=count))
+
+    def _apply_button_glow(self,button):
+        if not self._v2_ready:return super()._apply_button_glow(button)
+
+    def _update_attention_timer(self):
+        if not self._v2_ready:return super()._update_attention_timer()
+        self.save_attention_timer.stop()
+        buttons=(self.save_changes_button,self.save_bulk_button)
+        self._glow_targets=[b for b in buttons if b.property('attention')=='true' and b.isEnabled()]
+        for button in buttons:
+            effect=button.graphicsEffect()
+            if button in self._glow_targets and not isinstance(effect,QGraphicsDropShadowEffect):
+                effect=QGraphicsDropShadowEffect(button);effect.setOffset(0,0);button.setGraphicsEffect(effect)
+            elif button not in self._glow_targets and effect is not None:
+                button.setGraphicsEffect(None)
+        breath=getattr(self,'_breath',None)
+        if breath is None:
+            breath=self._breath=QVariantAnimation(self)
+            breath.setDuration(self.BREATH_MS);breath.setLoopCount(-1)
+            breath.setStartValue(0.0);breath.setKeyValueAt(0.5,1.0);breath.setEndValue(0.0)
+            breath.setEasingCurve(QEasingCurve.Type.InOutSine)
+            breath.valueChanged.connect(self._breathe)
+        if not self._glow_targets:breath.stop();return
+        if not _animations_enabled():
+            # Windows "Show animations" off: keep a steady halo, no motion.
+            breath.stop();self._breathe(.7);return
+        if breath.state()!=QAbstractAnimation.State.Running:breath.start()
+
+    def _breathe(self,value):
+        for button in getattr(self,'_glow_targets',[]):
+            effect=button.graphicsEffect()
+            if not isinstance(effect,QGraphicsDropShadowEffect):continue
+            color=QColor(design.colors()['accent']);color.setAlpha(int(70+160*value))
+            effect.setColor(color);effect.setBlurRadius(8+28*value)
+
     def save_finished(self,message):
         self._before_edits.clear()
         self.cover_host.store.clear()
+        # Saved deletions are no longer on the SD. Left in the list they still
+        # count as pending (the rescan would ask to discard), and a second save
+        # would send to the trash the game that took over their slot.
+        self.games=[game for game in self.games if not game.pending_delete]
+        self.games_by_slot={game.slot:game for game in self.games}
         super().save_finished(message)
 
     def ensure_write_allowed(self):
@@ -475,6 +545,16 @@ class MainWindowV2(MainWindow):
             self.path_edit.setText(str(dialog.selected_path))
             self.root_path=dialog.selected_path
             self.start_scan()
+
+    def _has_registered_backup(self, diagnostic):
+        from ...services.backup_service import completed_backup_exists
+        return super()._has_registered_backup(diagnostic) or completed_backup_exists(self.settings,diagnostic)
+
+    def open_backup_prompt(self, diagnostic, force=False, allow_skip=True):
+        self.leave_bulk()
+        from .backup import BackupPromptV2
+        dialog=BackupPromptV2(diagnostic,self,force=force,allow_skip=allow_skip)
+        return dialog.exec()==QDialog.DialogCode.Accepted
 
     def open_provider_settings(self):self.leave_bulk();super().open_provider_settings()
     def force_backup_current_sd(self):self.leave_bulk();super().force_backup_current_sd()

@@ -68,3 +68,30 @@ No GitHub release or public binary upload was made.
 
 Clean-Windows, private-provider and physical SD/Dreamcast gates remain pending.
 The GUI portable has no separate agent CLI executable or MCP server.
+
+## dev7 illustrated preparation and backup (2026-10-10)
+
+Local native Windows build: 2.0.0.dev7, Python 3.12.10, PySide6 6.11.2,
+PyInstaller 6.22.3. Source and portable self-tests both returned version dev7,
+startup=true, icons=true, errors=[], sd_scanned=false and network_requested=false.
+They used explicit synthetic/local destinations and isolated runtime/document
+folders. This is startup evidence, not a network capture or hardware validation.
+
+Archive: `OpenMenuGDEMUManager-2.0.0-dev7-portable-windows.zip`
+
+SHA256: `0e8de2e99e6a07e981d0e1e595c6105b2edec27d82c90d41a49fad14682f21fd`
+
+Executable SHA256: `5dd55bf7925a026809671e17fe93afc3739c3b2d91f4ebd38059f5744704a42b`
+
+ZIP CRC passed (475 entries). Archived executable matches the tested executable;
+packaged artwork, tokens and EN/ES catalogs match final source bytes. Twelve
+changed application modules match final source code attributes/constants recursively,
+excluding build-dependent filenames. No runtime data, local-artifacts or virtual
+environment are bundled. The previous portable, including its data, was preserved
+before building. No public binary upload or release was made.
+
+This build replaces setup/backup presentation with shared native components and
+an illustrative SVG, preserving original storage/copy/upgrade services. Real copy
+progress counts files; there is no invented byte progress, ETA or unsafe cancellation.
+Independent source/visual review and full/DPI regression results are recorded separately.
+Clean Windows VM and physical SD/Dreamcast launch gates remain pending.

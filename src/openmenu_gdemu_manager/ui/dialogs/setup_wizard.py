@@ -390,6 +390,9 @@ class SetupWizardDialog(QDialog):
         self.selected_path = path
         self._show_diagnostic(self.diagnostic)
 
+    def _backup_registered(self, diagnostic):
+        return registered_backup_exists(diagnostic.root)
+
     def _show_diagnostic(self, diagnostic: StorageDiagnostic):
         summary = diagnostic.summary
         self.route_edit.setText(str(diagnostic.root))
@@ -433,7 +436,7 @@ class SetupWizardDialog(QDialog):
         decision = backup_decision(self.settings, diagnostic)
         show_backup = (
             _backup_recommended(diagnostic)
-            and not registered_backup_exists(diagnostic.root)
+            and not self._backup_registered(diagnostic)
             and (self.force_backup_prompt or not (decision and decision.get("decision") == "skipped"))
         )
         self.backup_button.setVisible(show_backup)

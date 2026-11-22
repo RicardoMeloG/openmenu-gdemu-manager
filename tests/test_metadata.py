@@ -317,6 +317,35 @@ def test_read_disc_product_id_reads_ip_bin_from_declared_gdi_track(tmp_path):
     assert read_disc_product_id(folder) == "T0000M"
 
 
+def test_read_disc_number_and_multidisc_games_are_not_duplicates(tmp_path):
+    from openmenu_gdemu_manager.dreamcast.metadata import read_disc_number
+    from openmenu_gdemu_manager.dreamcast.rom_library import inspect_source, same_product_disc
+
+    def disc(name, device):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "disc.gdi").write_text("1\n1 0 4 2048 track01.iso 0", encoding="ascii")
+        ip = bytearray(0x100)
+        ip[:16] = b"SEGA SEGAKATANA "
+        ip[0x20:0x30] = device
+        ip[0x40:0x50] = b"MK-51059  V1.003"
+        ip[0x80:0x88] = b"SHENMUE "
+        (folder / "track01.iso").write_bytes(bytes(ip))
+        return folder
+
+    second = disc("Shenmue (Disc 2)", b"4D9C GD-ROM2/3  ")
+    assert read_disc_number(second) == "2/3"
+    assert read_disc_number(disc("Unknown", b"                ")) == ""
+    entry = inspect_source(second)
+    # The bundled list's misread "SHENMUE" serial must not beat the disc header.
+    assert (entry.name, entry.product_id, entry.disc) == ("SHENMUE", "MK51059", "2/3")
+    on_sd = GameItem(2, "Shenmue (Disc 1)", product_id="MK51059", disc="1/3")
+    assert not same_product_disc(entry.product_id, entry.disc, on_sd)
+    assert same_product_disc(entry.product_id, entry.disc, GameItem(3, "Shenmue (Disc 2)", product_id="mk51059", disc="2/3"))
+    # A disc the SD does not record still counts as the same game.
+    assert same_product_disc(entry.product_id, entry.disc, GameItem(4, "Shenmue", product_id="MK51059"))
+
+
 def test_read_disc_internal_name_reads_ip_bin_software_title(tmp_path):
     folder = tmp_path / "073"
     folder.mkdir()
@@ -343,6 +372,40 @@ def test_read_disc_metadata_searches_cdi_for_embedded_ip_bin(tmp_path):
 
     assert read_disc_product_id(folder) == "MK51052"
     assert read_disc_internal_name(folder) == "SKIES OF ARCADIA DISC2"
+
+
+def test_cdi_product_id_comes_from_boot_track_not_first_false_magic(tmp_path):
+    from cdi_fixtures import classic_cdi
+    folder = tmp_path / "007"
+    folder.mkdir()
+    path = classic_cdi(folder / "disc.cdi", sessions=[
+        [{"mode": 0, "read_mode": 2, "sectors": 4, "indices": (1, 3)}],
+        [{"mode": 2, "read_mode": 1, "sectors": 4, "indices": (2, 2)}],
+    ])
+    data = bytearray(path.read_bytes())
+    # Shenmue PAL: the magic appears first in session 1 with null fields.
+    false = bytearray(b" " * 0x100)
+    false[:15] = b"SEGA SEGAKATANA"
+    false[0x40:0x4A] = b"\x00" * 8 + b"@\x83"
+    false[0x80:0x100] = b"\x00" * 0x80
+    data[100:100 + 0x100] = false
+    real = bytearray(b" " * 0x100)
+    real[:16] = b"SEGA SEGAKATANA "
+    real[0x40:0x50] = b"MK-5105950V1.001"
+    real[0x80:0x87] = b"SHENMUE"
+    boot = 4 * 2352 + 2 * 2336 + 8
+    data[boot:boot + 0x100] = real
+    path.write_bytes(bytes(data))
+
+    assert read_disc_product_id(folder) == "MK5105950"
+    assert read_disc_internal_name(folder) == "SHENMUE"
+
+
+def test_menu_product_id_replaces_unreadable_menu_serial():
+    garbage = "\x00" * 8 + "@"
+    assert menu_product_id_for_slot(7, garbage, "MK5105950") == "MK5105950"
+    assert menu_product_id_for_slot(7, garbage, "") == "SLOT007"
+    assert "SLOT007" in artwork_serial_candidates(7, garbage, "MK5105950", "MK5105950")
 
 
 def test_menu_product_id_prefers_real_disc_serial_and_repairs_synthetic_slot_id():

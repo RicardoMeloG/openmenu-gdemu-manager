@@ -23,8 +23,17 @@ def paint_check(painter,rect,checked,partial=False):
     painter.restore()
 
 
+PREVIEW_STATUSES={'seleccionada','revision'}
+
+
 class CollectionModel(GamesTableModel):
     def __init__(self,window):super().__init__(window);self.window=window
+
+    def proposal_preview(self,game):
+        """Bulk-search proposal still awaiting review, or None."""
+        proposal=self._proposals.get(game.slot)
+        if game.pending_delete or not proposal or proposal.image is None or proposal.status not in PREVIEW_STATUSES:return None
+        return proposal
 
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():return None
@@ -42,7 +51,8 @@ class CollectionModel(GamesTableModel):
                 if game.pending_delete:parts.append(tr('remove_pending'))
                 elif game.pending_add:parts.append(tr('new_pending'))
                 elif draft or game.save_status=='pendiente_guardar':parts.append(tr('pending'))
-                elif game.slot in self._proposals:parts.append(tr('proposal'))
+                # New games get proposals too; say so instead of hiding it behind "new".
+                if not draft and self.proposal_preview(game):parts.append(tr('proposal'))
                 return '\n'.join(parts)
         return super().data(index,role)
 
@@ -67,12 +77,23 @@ class CollectionDelegate(QStyledItemDelegate):
         col=index.column()
         if col==model.C_CHECK:paint_check(painter,rect,model._bulk_checked.get(game.slot,False))
         elif col==model.C_COVER:
-            # Pending proposals never impersonate a cover already saved on SD.
-            pm=model._cover_pixmap(game,None)
-            if game.has_placeholder_cover or not game.current_cover:icon('photo').paint(painter,rect.center().x()-12,rect.center().y()-12,24,24)
-            elif pm and not pm.isNull():
-                scaled=pm.scaled(rect.size(),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
-                painter.drawPixmap(rect.center().x()-scaled.width()//2,rect.center().y()-scaled.height()//2,scaled)
+            proposal=model.proposal_preview(game)
+            if proposal:
+                # A proposal is shown, but framed with a dashed accent border so
+                # it never impersonates a cover already saved on the SD.
+                pm=model._cover_pixmap(game,proposal)
+                if pm and not pm.isNull():
+                    scaled=pm.scaled(rect.adjusted(3,3,-3,-3).size(),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
+                    x,y=rect.center().x()-scaled.width()//2,rect.center().y()-scaled.height()//2
+                    painter.drawPixmap(x,y,scaled)
+                    painter.setPen(QPen(QColor(c['accent']),2,Qt.PenStyle.DashLine));painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(QRectF(x-2,y-2,scaled.width()+3,scaled.height()+3))
+            else:
+                pm=model._cover_pixmap(game,None)
+                if game.has_placeholder_cover or not game.current_cover:icon('photo').paint(painter,rect.center().x()-12,rect.center().y()-12,24,24)
+                elif pm and not pm.isNull():
+                    scaled=pm.scaled(rect.size(),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
+                    painter.drawPixmap(rect.center().x()-scaled.width()//2,rect.center().y()-scaled.height()//2,scaled)
         elif col==model.C_NAME:
             font=QFont(option.font);font.setWeight(QFont.Weight.DemiBold)
             painter.setFont(font);painter.setPen(QColor(c['ink']))

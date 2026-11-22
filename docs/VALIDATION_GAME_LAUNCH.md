@@ -27,6 +27,7 @@ library scans, SD backups, or hardware logs.
 | Empty track or a file ending mid-sector | Reject with a specific reason. Honor declared offsets when checking sector alignment. |
 | Truncation at a whole-sector boundary | Detect when track bounds, a known matching reference, or supported filesystem extents prove required data is absent; sector divisibility alone is insufficient. |
 | Valid GDI with spaces/quoted track filenames | Accept and copy all referenced tracks with path containment enforced. |
+| Valid GDI whose track lines omit the optional trailing offset (five fields) | Accept with offset 0 and apply every other track check; reject fewer or more fields. |
 | Supported valid CDI | Validate its descriptor and track bounds within the file; accept without external GDI tracks. Unsupported variants must be reported distinctly from confirmed corruption. |
 | File lost or damaged during staging | Validate the destination before publishing the slot; do not rely only on aggregate byte totals. Preserve recovery metadata and the previous menu. |
 | Source rejected in a transaction that also removes/reorders games | Reject before moving/deleting existing slots or replacing menu `01`. |

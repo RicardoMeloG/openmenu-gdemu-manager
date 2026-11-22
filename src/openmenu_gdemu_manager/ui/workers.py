@@ -312,6 +312,9 @@ def _slot_folder(root_path: Path, slot: int) -> Path:
 def _compact_game_slots(root_path: Path, games: list[GameItem]) -> list[dict]:
     service = SdSlotTransactionService(root_path, "test_compaction")
     plan = service.build_plan(games)
+    result = service.execute(plan, games)
+    # Folder-only compaction: there is no menu step to wait for.
+    service.mark_completed()
     return [
         {
             "old_slot": int(entry.old_slot),
@@ -319,7 +322,7 @@ def _compact_game_slots(root_path: Path, games: list[GameItem]) -> list[dict]:
             "name": entry.name,
             "product_id": entry.product_id,
         }
-        for entry in service.execute(plan, games).plan.moves
+        for entry in result.plan.moves
     ]
 
 
@@ -665,6 +668,9 @@ class SaveChangesWorker(QObject):
             self.progress.emit(current, total, "Menu OpenMenu", f"Reconstruyendo menu {current} de {total}")
             write_openmenu_ini(kept)
             rebuild_result = OpenMenuRebuilder().rebuild_and_replace(self.root_path, kept)
+            # Only now do folders and menu agree; until here a failure leaves
+            # the slot transaction incomplete so the next session offers recovery.
+            slot_service.mark_completed(menu_backup=str(rebuild_result.backup_slot))
 
             for game in kept:
                 if game.pending_delete:

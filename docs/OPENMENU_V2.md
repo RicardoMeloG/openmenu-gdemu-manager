@@ -1,6 +1,7 @@
 # OpenMenu GDEMU Manager v2
 
-Version `2.0.0.dev5`, development branch `feature/openmenu-v2` based on `develop`.
+Version `2.0.0.dev7`; illustrated preparation work is on
+`feature/setup-design-direction`, based on `develop`.
 This is a real PySide6 application over the original services. It is not the
 HTML mockup or a simulation, and is not yet a hardware-validated public release.
 
@@ -8,14 +9,27 @@ HTML mockup or a simulation, and is not yet a hardware-validated public release.
 
 The collection answers which games are present and which need a cover. It uses
 compact rows, small uncropped thumbnails, disc ID, region and pending states.
+It has no page title: the title bar names the app and the destination card heads
+the window, so the game list keeps that height. The card adds a short GDEMU.ini
+status; the full configuration note gets its own line only when the file needs
+attention, and its details action sits beside the guidance banner. A
+«Solo sin carátula (n)» checkbox filters games without a cover, and the save
+button counts pending changes and breathes an orange halo while they exist.
 The cover workspace helps fans find a design, inspect its scan and choose it.
 It starts with six alternatives per page, across every available region. Click
 an image to enlarge it; compare two distinct images side by side or by alternation,
-with zoom and synchronized pan. The OpenMenu preview uses the project's actual
+with zoom and synchronized pan. `100 %` draws one image pixel per physical
+screen pixel whatever the Windows display scaling, and the fitted view states
+its real percentage, so the two are not confused on scaled displays. The
+OpenMenu preview uses the project's actual
 Pillow normalizer. The original scan is not color-corrected or cropped.
 
 Shared tokens, action semantics, Tabler SVG icons and Qt atoms live in
-`ui/v2/design.py` and `resources/v2/`. Bitmap assets remain covers and branding.
+`ui/v2/design.py` and `resources/v2/`. Command icons remain consistent; artwork has a separate decorative role.
+The accepted [setup art direction](design/SETUP_DESIGN_DIRECTION.md) adds an
+illustrated state card and grouped destination/backup layout. Its native Qt adaptation
+and matching backup flow are implemented; independent evidence is tracked in
+[setup design validation](SETUP_DESIGN_VALIDATION.md). Human acceptance remains separate.
 There is no Tailwind/browser dependency. The original template registry still
 supports palettes, backgrounds and music. V2 gives the default formal template
 the approved warm orange palette; explicitly selected external/arcade palettes
@@ -26,7 +40,10 @@ status and next action, technical diagnostics on demand, and an explicit
 installation success state before entering the collection. Invalid edits revoke
 the old destination approval. An unrelated working directory is not presented
 as the user's SD at first run. Original diagnosis, installation and backup
-services remain authoritative. `retained_dialogs.py` registers backup, upgrade,
+services remain authoritative. `ui/v2/backup.py` now presents selection, explicit
+skip scope, real file-count progress, persistent success and error/retry over the
+original copy worker. The footer remains outside scrolling content and decoration
+hides first in compact windows. `retained_dialogs.py` registers upgrade,
 review, providers/credentials, language, About and bulk progress presentation;
 standard messages and template inputs share command icons and translated labels.
 Native file pickers remain OS-owned. See [screen coverage and visual review](V2_DIALOG_DESIGN_AUDIT.md).
@@ -36,23 +53,25 @@ Native file pickers remain OS-owned. See [screen coverage and visual review](V2_
 | Function | V2 integration |
 | --- | --- |
 | SD / backup folder diagnosis, FAT32 and write permission | Original diagnostic worker and safeguards; destination summary and reason visible. |
-| Empty SD setup, menu installation and old-menu upgrade | Compact V2 setup and adapted original upgrade, preserving backup decisions and OpenMenu assets. |
+| Empty SD setup, menu installation and old-menu upgrade | Illustrated native V2 setup and adapted original upgrade, preserving backup decisions and OpenMenu assets. |
 | Read games, names, IDs, regions and menu inconsistencies | Original scanner/models; compact table and full game information dialog. |
-| GDI/CDI file or recursive folder import | Real source inspection in a worker; explicit selection, global Todos, duplicates initially unchecked, invalid GDI/CDI blocked with reason; unsupported CDI profiles distinguished. |
+| GDI/CDI file or recursive folder import | Real source inspection in a worker; explicit selection, Todos, a text filter (name, game folder or format) that only hides rows and never changes the selection; while it is active, Todos becomes «Todos los visibles (n)» and acts only on the shown games, hidden selections are kept and the counter states the total; the selection's size, the destination's free space and free positions are shown, and Preparar stays enabled: when the selection does not fit it shows a warning with the checked games' size, a margin for covers and the menu, the total needed and the destination's free space (the save repeats the space check before touching the SD), picked files start checked and a picked folder's games start unchecked (a folder is a catalogue to choose from), duplicates initially unchecked, «Todos los visibles» and the capacity warning say how many checked games the filter hides, game folders run from 02 to 999 (the former 127 cap had no documented GDEMU/openMenu reason; more than 126 games on real hardware is still pending verification), invalid GDI/CDI blocked with reason; unsupported CDI profiles distinguished. |
 | Add, remove, compact slots, write names and rebuild 01 | Original workers/slot transactions/rebuilder; changes remain pending until confirmed. |
 | Search providers, matching thresholds and caching | Original search services/settings; remote image preparation stays outside the UI thread. |
-| Automatic bulk proposals and batch approval | Original bulk workers/quality rules; proposals do not automatically become a manual Save. Explicit batch Save retains the original review/confirmation. |
+| Automatic bulk proposals and batch approval | Original bulk workers/quality rules; proposals do not automatically become a manual Save. The collection previews each pending proposal inside a dashed accent frame, never as a saved cover, and its status says it awaits review, new games included. Explicit batch Save retains the original review/confirmation. |
 | Current cover, quality, dimensions, source and previous covers | Game/image information and persistent original cover library. Full metadata remains on GameItem. |
 | Import local covers and web search templates | Original file picker/providers and configured web templates, disc-ID search, source opening, originals folder. |
-| Backup, transaction recovery and internal trash | Original services and dialogs, never replaced by mockup code. |
+| Backup, transaction recovery and internal trash | Original copy/recovery/trash services; native V2 backup presentation, retained recovery dialogs. A slot transaction stays incomplete (`slots_published`) until menu 01 is rebuilt for its folders; if the rebuild fails, recovery offers to revert to the layout the current menu describes, and offers completion only when 01 already lists the new layout. A slot pending deletion is not reused by an addition in the same save. |
 | Spanish/English, language packages | Original language registry; V2 strings/actions use its catalogs. |
 | Install templates, backgrounds and music | Original template registry/menu/audio controller. |
 | JSON/TSV export, logs and updates | Original menus/services. The displayed version comes from the current code. |
 
 ## State and interaction contract
 
-1. Selecting a destination diagnoses it before any write. A folder that cannot
-   be written remains inspectable when the original diagnostic allows scanning.
+1. Selecting a destination diagnoses it before any write. Migratable old or
+   unknown menus open the original backup/update review before collection access;
+   the setup action names that review. The generic read-only presentation does
+   not promise a new inspection path for those menus.
 2. Source import is separate from SD contents. Preparing games adds pending
    rows; it does not copy files. Invalid sources show a reason. Supported CDI
    descriptors and declared track bounds are checked; unknown layouts require
@@ -200,3 +219,30 @@ evidence remains in [V2 validation](V2_VALIDATION.md). The old dev5 portable doe
 not include these changes. The dev6 local packaging/startup checks passed; see
 [V2 portable evidence](V2_PORTABLE_VALIDATION.md). Existing clean-Windows/hardware
 gates still apply.
+
+
+## Illustrated preparation and backup (dev7)
+
+Native Qt shared Header/PathStrip/StatusCard/Confirmation/footer components replace
+only setup and backup presentation. Artwork is a custom decorative SVG; commands
+remain Tabler outline. Compact layouts hide decoration first; fixed footers and
+focus-aware scrolling keep buttons, path fields and reminder checkboxes reachable.
+Diagnostic and install services run outside the GUI thread with protected busy
+states. Enter inside the destination field only checks it. Editing/picking a new
+destination clears its old installation approval and contextual notices.
+
+A copy must complete before success appears. Completed backups retain the original
+manifest/copy service. PC metadata and optional source registry failures are shown
+separately from copy failure; read-only/blocked sources are not mutated to register
+a backup. V2 also recognizes a PC backup decision with a matching complete manifest
+and existing recorded files/sizes, preserving the old-menu upgrade handoff without
+requiring that registry write. This is copy evidence, not a payload/hash/hardware
+certification. Remembered omissions are persisted only after confirmation; a failed
+settings write preserves the previous decision and keeps the reminder available.
+
+Installation success requires compatible OpenMenu and permitted scan/write in the
+final diagnostic. An incompatible copied template remains inspectable with its
+actual diagnostic; it is never reported as ready to add games. No automatic repair,
+formatting or deletion is added. Human acceptance and hardware gates remain open.
+
+Legacy menu handoff: the setup action now says Review update for migratable old/unknown menus, matching the original backup/update review. It does not promise collection inspection before an upgrade. Generic read-only presentation is tested with simulated permissions; it is not reported as a new end-to-end legacy inspection flow. Cancelling review preserves source files.

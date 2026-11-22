@@ -207,3 +207,69 @@ The final full/DPI harness result is generated separately in
 [V2_PORTABLE_VALIDATION.md](V2_PORTABLE_VALIDATION.md). This review is not approval
 of physical SD/Dreamcast operation, a clean Windows installation, all native
 crashes or complete anonymization of user data. No MCP server is added.
+
+## Setup design base / harness — 10 October 2026
+
+Independent reviewer: `setup_direction_harness_audit`, started without conversation
+history. Scope: the supplied visual reference, setup contract, documentation and
+the evidence gate; not a rendered implementation of that new direction.
+
+The reviewer confirmed the reference SHA256 and accepted composition/state
+corrections. It found that a file merely named PNG could be reused as evidence
+for all states, that reference content was not checked, and that raster resources
+were absent from the source fingerprint. Corrections validate PNG format, unique
+captures, dimensions/DPR, reference hash and raw raster bytes. Regression tests
+cover malformed/stale/incomplete records and changed resources.
+
+Final disposition: **approved for incorporating the design base and harness**.
+The Qt adaptation and its own visual review remain **pending**. A recorded
+review is a named manual attestation bound to sources/captures; no programmatic
+check certifies aesthetic fidelity or the execution of interactions. See the
+generated `SETUP_DESIGN_VALIDATION.md` and `V2_VALIDATION.md` for current results.
+
+## dev7 illustrated setup and backup — 10 October 2026
+
+Independent reviewer: `illustrated_setup_backup_audit`, started without conversation
+history. Scope: both supplied references, native setup/backup/confirmation, original
+service handoff, documentation and generated renders. The reviewer independently
+ran interactions on synthetic destinations, actual backup copies and manifest checks;
+no physical SD, provider traffic or Dreamcast test was used.
+
+The initial review withheld approval. Reproduced findings were corrected:
+
+| Finding | Correction and evidence |
+| --- | --- |
+| Read-only backup attempted source registry writes | Optional source metadata requires original and fresh write permission; actual read-only copy preserves source and a completed manifest remains usable locally. |
+| Incompatible installation or changing destination retained a success flag | Only compatible scan/write-ready results announce installed; checks and path changes revoke the old flag; real synthetic template and second-destination regressions. |
+| Failed preference persistence changed the session decision | Save a deep-copy proposal before adoption; errors keep the original setting and explain failure. Merely checking a reminder does not persist it. |
+| Compact keyboard navigation hid the reminder checkbox | Shared focus-aware scroll container exposes all focused controls; independent Windows DPR 2.5 Tab interaction. |
+| Enter in the path could activate a destructive default | The path input consumes Return for diagnosis only; button/accessibility labels follow changing actions. Confirmation defaults to Back. |
+| Diagnostic/install services blocked UI events | Original services execute in a protected Qt thread; real event-loop responsiveness and blocked close/reentrancy probes. |
+| New strings were outside the translated catalog | EN/ES strings live in the strings catalog, with AST-based catalog regressions. |
+| View collection opened migration instead | Migratable old/unknown menus now say Review update and open the original backup/update review. Actual Setup/controller/cancel reproduction preserves source. Generic read-only rendering uses simulated permissions and is not reported as an available legacy inspection workflow. |
+| Compact confirmation clipped the preference paragraph inside a wrapped label | Width-aware minimum height on shared state-card labels; eight EN/ES/theme/skip-scope cases check the text height and reach its last line through Shift+Tab/PgDown. |
+| Backup omission promised only reading although migration could follow | Shared confirmation explicitly distinguishes later Save from OpenMenu update and their own confirmations. |
+| Copy snapshots could precede layout or miss fast progress | Test barriers surround the real copy service; capture settled GUI preparation/copy states before allowing completion. Independent equivalent captures verify counts and non-invented progress. |
+
+The reviewer separately checked real failure/retry, persistent success/Continue,
+required versus optional backup, EN/ES, both themes, expanded details, compact
+confirmation, accessible names and explicit keyboard acceptance. Its final independent
+focused run passed 22 tests (90 deselected). Eight compact scope confirmations
+covered both languages/themes and one-time versus remembered omission; keyboard
+navigation exposed the full message. A separate 24-observation layout scan covered
+empty/ready/legacy/backup selection, both languages and three sizes. These are
+bounded observations, not exhaustive Cartesian coverage.
+
+The final full/DPI evidence in [V2_VALIDATION.md](V2_VALIDATION.md) records 523 passes
+and six offline omissions, plus 147 UI passes each at offscreen 1.25, offscreen 1.5
+and native Windows system DPR 2.5. The final portable and source correspondence are
+recorded in [V2_PORTABLE_VALIDATION.md](V2_PORTABLE_VALIDATION.md). Human acceptance,
+clean Windows, a complete external screen-reader session and physical
+SD/Dreamcast gates remain separate.
+
+Final independent disposition: **APPROVED for the reviewed local implementation**,
+with no open blocker in that scope. The reviewer inspected 27 final captures
+covering all 18 states and every required axis value; all ten criteria passed.
+The private attestation binds the source and contract digests to those captures.
+[SETUP_DESIGN_VALIDATION.md](SETUP_DESIGN_VALIDATION.md) records the generated gate;
+its approval does not certify the separate release or human acceptance gates.

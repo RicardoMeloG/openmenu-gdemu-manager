@@ -9,13 +9,20 @@ from openmenu_gdemu_manager.dreamcast.sd_writer import (
 )
 
 
-def test_first_free_slot_skips_used_and_pending_deletes():
+def test_first_free_slot_does_not_reuse_a_slot_pending_deletion():
     games = [
         GameItem(slot=2, name="Used"),
         GameItem(slot=3, name="Deleting", pending_delete=True),
     ]
 
-    assert first_free_slot(games) == 3
+    assert first_free_slot(games) == 4
+
+
+def test_first_free_slot_goes_past_the_old_127_cap():
+    games = [GameItem(slot=slot, name=f"G{slot}") for slot in range(2, 128)]
+
+    assert first_free_slot(games) == 128
+    assert first_free_slot([GameItem(slot=slot, name="G") for slot in range(2, 1000)]) is None
 
 
 def test_build_openmenu_text_contains_slot_entries():

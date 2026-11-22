@@ -5,14 +5,13 @@ owns only their visual integration. Unregistered application dialogs are reporte
 by the coverage inventory, rather than silently counted as design-approved.
 """
 from PySide6.QtCore import QObject, QEvent, QSize, Qt
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QPushButton, QDialogButtonBox, QMessageBox, QTableWidget, QHeaderView
+from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QPushButton, QDialogButtonBox, QMessageBox, QTableWidget, QHeaderView
 
 from ...i18n import tr
 from . import design
 
 
 RETAINED_DIALOGS = {
-    'BackupPromptDialog': 'backup',
     'LegacyMenuUpgradeDialog': 'upgrade',
     'ConfirmApplyDialog': 'review',
     'ProviderSettingsDialog': 'providers',
@@ -122,6 +121,8 @@ def _translate_standard(dialog):
 
 
 def adapt_dialog(dialog):
+    if dialog.property('v2Dedicated'):
+        return True
     kind = RETAINED_DIALOGS.get(type(dialog).__name__)
     if not kind and not isinstance(dialog, (QMessageBox, QInputDialog)):
         return False
@@ -154,9 +155,9 @@ def adapt_dialog(dialog):
             item.setProperty('muted', True)
             item.setMinimumHeight(0)
             design.repolish(item)
-    if kind in ('backup', 'upgrade'):
+    if kind == 'upgrade':
         dialog.setMinimumSize(620, 300)
-        dialog.resize(740, 420 if kind == 'backup' else 340)
+        dialog.resize(740, 340)
         hero = dialog.findChild(QObject, 'WizardHero')
         if hero:
             hero.setMinimumHeight(0)
@@ -165,19 +166,7 @@ def adapt_dialog(dialog):
             picture = next((item for item in hero.findChildren(QLabel) if not item.pixmap().isNull()), None)
             if picture:
                 picture.setFixedSize(36, 36)
-                picture.setPixmap(design.icon('folder-open' if kind == 'backup' else 'refresh', size=32).pixmap(32, 32))
-        if kind == 'backup':
-            # Choose destination is navigation, separate from backup/skip/cancel.
-            chooser = dialog.choose_button
-            for index in range(layout.count()):
-                row = layout.itemAt(index).layout()
-                if row and row.indexOf(chooser) >= 0:
-                    row.removeWidget(chooser)
-                    layout.insertWidget(index, chooser, 0, Qt.AlignmentFlag.AlignLeft)
-                    break
-            pictures = [item for item in dialog.findChildren(QLabel) if item.width() == 28 and not item.pixmap().isNull()]
-            for item, glyph in zip(pictures, ('device-sd-card', 'folder-open')):
-                item.setPixmap(design.icon(glyph).pixmap(24, 24))
+                picture.setPixmap(design.icon('refresh', size=32).pixmap(32, 32))
     if kind == 'providers':
         dialog.setMinimumSize(620, 360)
         dialog.resize(920, 500)
@@ -202,11 +191,22 @@ class DialogPresentation(QObject):
     def eventFilter(self, watched, event):
         if not QApplication.instance().property('v2Design'):
             return False
-        if event.type() == QEvent.Type.Show and isinstance(watched, QDialog) and not isinstance(watched, QFileDialog):
+        kind = event.type()
+        if kind == QEvent.Type.Show and isinstance(watched, QDialog) and not isinstance(watched, QFileDialog):
             adapt_dialog(watched)
-        elif event.type() == QEvent.Type.EnabledChange and isinstance(watched, QPushButton):
+        elif kind == QEvent.Type.EnabledChange and isinstance(watched, QPushButton):
             refresh_button(watched)
+        if kind in (QEvent.Type.Polish, QEvent.Type.EnabledChange) and isinstance(watched, QAbstractButton):
+            sync_hand_cursor(watched)
         return False
+
+
+def sync_hand_cursor(button):
+    """Every clickable control shows the pointing hand; a disabled one does not."""
+    if button.isEnabled():
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+    else:
+        button.unsetCursor()
 
 
 def install(app):
