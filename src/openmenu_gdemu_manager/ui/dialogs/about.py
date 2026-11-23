@@ -5,7 +5,7 @@ from importlib import metadata
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from ... import APP_NAME, CONTACT_URL, REPOSITORY_URL, __version__
+from ..._metadata import APP_NAME, AUTHOR_NAME, AUTHOR_URL, CONTACT_URL, REPOSITORY_URL, SECURITY_URL, __version__
 from ...config.paths import BASE_DIR
 from ...i18n import tr
 from ..icons import app_logo_pixmap
@@ -20,8 +20,9 @@ class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("dialog.about.title"))
-        self.resize(560, 360)
         self._build_ui()
+        # Open tall enough for the whole wrapped text at the default width.
+        self.resize(560, max(360, self.layout().totalHeightForWidth(560)))
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -43,8 +44,11 @@ class AboutDialog(QDialog):
             "dialog.about.body",
             app=APP_NAME,
             version=app_version(),
+            author=AUTHOR_NAME,
+            author_url=AUTHOR_URL,
             repo=REPOSITORY_URL,
             contact=CONTACT_URL,
+            security=SECURITY_URL,
             data_dir=BASE_DIR,
         ))
         body.setWordWrap(True)

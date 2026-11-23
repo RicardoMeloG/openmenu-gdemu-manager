@@ -550,3 +550,17 @@ def test_compact_confirmation_complete_text_is_keyboard_reachable(app,language,t
     assert dialog.back_button.isVisible() and dialog.continue_button.isVisible()
     capture(dialog,'backup_skip_confirmation',language,theme)
     dispose(app,dialog)
+
+
+@pytest.mark.parametrize('language',['es','en'])
+def test_confirmation_opens_tall_enough_for_its_whole_message(app,language):
+    from openmenu_gdemu_manager.ui.v2.catalog import tr
+    set_language(language)
+    messages=[tr('backup_skip_body')+'\n\n'+tr(key) for key in ('backup_skip_once','backup_skip_remembered')]
+    for message in messages:
+        dialog=Confirmation(None,tr('backup_skipping'),message,tr('backup_continue'))
+        dialog.show();app.processEvents()
+        assert dialog.body_scroll.verticalScrollBar().maximum()==0,(message,dialog.size())
+        assert dialog.width()==500 and dialog.height()>=220
+        reachable(app,dialog)
+        dispose(app,dialog)

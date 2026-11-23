@@ -224,3 +224,21 @@ class Confirmation(QDialog):
         row.addWidget(self.back_button)
         row.addWidget(self.continue_button)
         root.addLayout(row)
+        self.resize(500,self.fitting_height(500))
+
+    def fitting_height(self,width):
+        """Open tall enough for the whole message; the scroll stays for small screens."""
+        self.ensurePolished()
+        content=self.body_scroll.widget()
+        content.ensurePolished()
+        for child in content.findChildren(QWidget):
+            child.ensurePolished()
+        margins=self.layout().contentsMargins()
+        frame=2*self.body_scroll.frameWidth()
+        inner=width-margins.left()-margins.right()-frame
+        body=content.layout()
+        text=body.heightForWidth(inner) if body.hasHeightForWidth() else body.sizeHint().height()
+        buttons=self.layout().itemAt(1).sizeHint().height()
+        needed=margins.top()+margins.bottom()+frame+text+self.layout().spacing()+buttons
+        screen=self.screen().availableGeometry().height() if self.screen() else needed
+        return max(220,min(needed,int(screen*.9)))
