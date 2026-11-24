@@ -1113,6 +1113,13 @@ def test_cover_window_has_no_inner_close_button_and_still_closes(window,how):
     assert not [b for b in ws.findChildren(QPushButton) if getattr(b,'action',None)=='close' or (not b.text() and b.toolTip()==close_label)]
     # Header: «Mi colección» on the left and the title reaching the right margin, with no gap.
     top=ws.findChild(QWidget,'Top');heading=ws.title_label.parentWidget()
+    # Nested layouts settle over two event-loop passes: activating the heading's
+    # layout invalidates the header's again. At 2.5× the first paint can use up a
+    # fixed short wait, so wait for the header layout itself before measuring it.
+    for _ in range(200):
+        if top.layout().geometry().isValid():break
+        QTest.qWait(10)
+    assert top.layout().geometry().isValid()
     assert ws.back_button.text()==catalog.tr('collection') and ws.back_button.geometry().right()<heading.geometry().left()
     assert heading.geometry().right()==top.layout().contentsRect().right()
     # Tab goes from «Mi colección» straight to the search field.
