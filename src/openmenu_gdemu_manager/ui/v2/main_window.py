@@ -129,6 +129,10 @@ class MainWindowV2(MainWindow):
         self.table.verticalHeader().setDefaultSectionSize(76)
         self.table.setAlternatingRowColors(False)
         self.table.setViewportMargins(0,0,0,0)
+        # The original table keeps the bar always on; V2 shows it only when
+        # rows overflow. The stretched name column absorbs its width, so the
+        # fixed columns (Acciones included) keep their size either way.
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         header=self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
         header.moveSection(header.visualIndex(GamesTableModel.C_SLOT),1)

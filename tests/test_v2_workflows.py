@@ -1189,3 +1189,22 @@ def test_chosen_card_says_chosen_on_its_button_and_stands_out(window):
     inner=image.pixelColor(int(2*ratio),int(chosen.height()//2*ratio))
     assert max(abs(inner.red()-success.red()),abs(inner.green()-success.green()),abs(inner.blue()-success.blue()))<40
     ws.reject()
+
+
+@pytest.mark.parametrize('count,scrolls',[(5,False),(30,True)])
+def test_collection_scroll_bar_only_when_rows_overflow_and_actions_stay_whole(window,count,scrolls):
+    window.games=[GameItem(slot,f'Game {slot}',has_placeholder_cover=True) for slot in range(2,2+count)]
+    window.games_by_slot={g.slot:g for g in window.games}
+    window.resize(1280,780);window.apply_filters();QTest.qWait(30)
+    table=window.table;bar=table.verticalScrollBar();viewport=table.viewport()
+    assert (bar.maximum()>0)==scrolls
+    assert bar.isVisible()==scrolls
+    assert not table.horizontalScrollBar().isVisible()
+    # Acciones keeps its fixed width and ends inside the viewport, next to the
+    # bar when it shows; only the stretched name column gives up the space.
+    actions=GamesTableModel.C_ACTIONS
+    assert table.columnWidth(actions)==120
+    right=table.horizontalHeader().sectionViewportPosition(actions)+table.columnWidth(actions)
+    assert 0<right<=viewport.width()
+    if scrolls:
+        assert viewport.mapTo(table,viewport.rect().topRight()).x()<bar.mapTo(table,bar.rect().topLeft()).x()
