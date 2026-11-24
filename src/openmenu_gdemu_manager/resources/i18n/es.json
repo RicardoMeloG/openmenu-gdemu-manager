@@ -695,6 +695,8 @@
     "v2.empty_filter": "No hay juegos que coincidan con este filtro.",
     "v2.empty_query": "Escribe un título para buscar. Se conservan los resultados y el nombre.",
     "v2.searching": "Buscando…",
+    "v2.searching_web": "Buscando imágenes en la web",
+    "v2.searching_web_hint": "Buscando carátulas para «{query}». Puede tardar unos segundos.",
     "v2.search_failed": "La fuente de ejemplo falló. Se conservan los resultados y la elección.",
     "v2.simulate_failure": "Simular fallo de búsqueda",
     "v2.bulk_progress": "Buscando carátulas de ejemplo para {count} juegos. Cada propuesta requerirá revisión.",

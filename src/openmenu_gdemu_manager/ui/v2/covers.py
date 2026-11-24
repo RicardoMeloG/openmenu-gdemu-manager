@@ -71,6 +71,7 @@ class Gallery(QWidget):
         super().__init__()
         self.workspace = workspace
         self.cards = []
+        self.spinner = None
         self.columns = 3
         root = QVBoxLayout(self)
         root.setContentsMargins(8,8,8,8)
@@ -168,6 +169,7 @@ class Gallery(QWidget):
 
     def populate(self):
         focus=self.focus_target()
+        self.stop_spinner()
         while self.grid.count():
             item = self.grid.takeAt(0)
             if item.widget():
@@ -183,9 +185,24 @@ class Gallery(QWidget):
         if not self.cards:
             empty, layout = box(spacing=12)
             layout.addStretch()
-            layout.addWidget(label(tr("no_results"), heading=True), 0, Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(label(tr("no_results_hint"), muted=True), 0, Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(Button("local_file", ws.import_local, compact=True), 0, Qt.AlignmentFlag.AlignCenter)
+            if ws.searching:
+                # Still searching: say so with the spinning disc, not "no covers found".
+                from ..widgets import SpinnerLabel
+                self.spinner = SpinnerLabel()
+                self.spinner.setFixedSize(64, 64)
+                layout.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(label(tr("searching_web"), heading=True), 0, Qt.AlignmentFlag.AlignCenter)
+                # A wrapped label only gets its full height when it spans the
+                # column; centring the widget itself clips its lines.
+                hint = label(tr("searching_web_hint", query=ws.session.query.strip()), muted=True, wrap=True)
+                hint.setObjectName("SearchingWebHint")
+                hint.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+                layout.addWidget(hint)
+                self.spinner.start()
+            else:
+                layout.addWidget(label(tr("no_results"), heading=True), 0, Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(label(tr("no_results_hint"), muted=True), 0, Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(Button("local_file", ws.import_local, compact=True), 0, Qt.AlignmentFlag.AlignCenter)
             layout.addStretch()
             self.grid.addWidget(empty, 0, 0)
             self.grid_widget.setMinimumHeight(0)
@@ -212,6 +229,12 @@ class Gallery(QWidget):
         self.next.setEnabled(ws.session.page < pages)
         self.scroll.verticalScrollBar().setValue(0)
         if focus:QTimer.singleShot(0,lambda target=focus:self.restore_focus(target))
+
+    def stop_spinner(self):
+        # Stop the disc's timer now; deleteLater alone would keep it ticking.
+        if self.spinner is not None:
+            self.spinner.stop()
+            self.spinner = None
 
     def focus_target(self):
         focused=QApplication.focusWidget()
@@ -521,6 +544,7 @@ class CoverWorkspace(QDialog):
         self.cache = {}
         self.gallery_origin=None
         self.search_request=0
+        self.searching=False
         self._closed=False
         self.finished.connect(self.invalidate_requests)
         root = QVBoxLayout(self)
@@ -586,6 +610,8 @@ class CoverWorkspace(QDialog):
     def invalidate_requests(self,*args):
         self._closed=True
         self.search_request+=1
+        self.searching=False
+        self.gallery.stop_spinner()
 
     def rename(self):
         if self.store.rename(self.game,self.session.query):

@@ -695,6 +695,8 @@
     "v2.empty_filter": "No games match this filter.",
     "v2.empty_query": "Enter a title to search. Results and name are preserved.",
     "v2.searching": "Searching…",
+    "v2.searching_web": "Searching the web for images",
+    "v2.searching_web_hint": "Searching covers for “{query}”. This can take a few seconds.",
     "v2.search_failed": "The sample source failed. Results and choice are preserved.",
     "v2.simulate_failure": "Simulate search failure",
     "v2.bulk_progress": "Searching sample covers for {count} games. Each proposal requires review.",

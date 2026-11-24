@@ -16,7 +16,11 @@ attention, and its details action sits beside the guidance banner. A
 «Solo sin carátula (n)» checkbox filters games without a cover, and the save
 button counts pending changes and breathes an orange halo while they exist.
 The cover workspace helps fans find a design, inspect its scan and choose it.
-It starts with six alternatives per page, across every available region. Click
+It starts with six alternatives per page, across every available region. While a
+web search runs and no alternative is shown yet, the gallery shows the app's
+spinning disc and «Buscando imágenes en la web» instead of an empty result; the
+disc stops when results arrive, the search fails or the window closes, and a new
+search keeps the alternatives already shown. Click
 an image to enlarge it; compare two distinct images side by side or by alternation,
 with zoom and synchronized pan. `100 %` draws one image pixel per physical
 screen pixel whatever the Windows display scaling, and the fitted view states

@@ -205,6 +205,76 @@ def test_readonly_blocks_mutations_and_stale_search_ignored(window):
     assert not store.session(view).results
 
 
+def offline_search(monkeypatch):
+    """Start the cover search without network: the worker never runs."""
+    from openmenu_gdemu_manager.ui.v2 import bridge
+    def fake_start(worker,thread_attr,worker_attr,owner,*args,**kwargs):
+        setattr(owner,thread_attr,QThread());setattr(owner,worker_attr,worker)
+    monkeypatch.setattr(bridge,'start_worker',fake_start)
+
+
+def visible_gallery_texts(ws):
+    from PySide6.QtWidgets import QLabel
+    return [l.text() for l in ws.gallery.grid_widget.findChildren(QLabel) if l.isVisible()]
+
+
+def test_cover_search_shows_spinning_disc_until_results_arrive(window,monkeypatch):
+    offline_search(monkeypatch)
+    ws=ProductionWorkspace(window.cover_host,window.games[1],auto_search=False)
+    ws.resize(1000,700);ws.show();QTest.qWait(20)
+    ws.search();QTest.qWait(80)
+    spinner=ws.gallery.spinner
+    assert spinner is not None and spinner.isVisible() and spinner.timer.isActive()
+    angle=spinner.angle;QTest.qWait(120);assert spinner.angle!=angle
+    texts=visible_gallery_texts(ws)
+    assert catalog.tr('searching_web') in texts
+    assert catalog.tr('searching_web_hint',query='Missing') in texts
+    assert catalog.tr('no_results') not in texts
+    from PySide6.QtWidgets import QLabel
+    hint=ws.gallery.grid_widget.findChild(QLabel,'SearchingWebHint')
+    # Every wrapped line of the hint is visible, not clipped.
+    assert hint.height()>=hint.heightForWidth(hint.width())
+    ws.search_finished({'items':[],'query':'Missing'},ws.search_request)
+    assert not spinner.timer.isActive() and ws.gallery.spinner is None and not ws.searching
+    QApplication.processEvents()
+    texts=visible_gallery_texts(ws)
+    assert catalog.tr('no_results') in texts and catalog.tr('searching_web') not in texts
+    ws.reject()
+
+
+def test_cover_search_failure_or_close_stops_spinning_disc(window,monkeypatch):
+    offline_search(monkeypatch)
+    ws=ProductionWorkspace(window.cover_host,window.games[1],auto_search=False)
+    ws.resize(1000,700);ws.show();QTest.qWait(20)
+    ws.search();spinner=ws.gallery.spinner
+    assert spinner is not None and spinner.timer.isActive()
+    ws.search_failed('offline',ws.search_request)
+    assert not spinner.timer.isActive() and ws.gallery.spinner is None and not ws.searching
+    QApplication.processEvents()
+    texts=visible_gallery_texts(ws)
+    assert catalog.tr('no_results') in texts and catalog.tr('searching_web') not in texts
+    assert ws.feedback.text()==catalog.tr('read_failed',reason='offline')
+    ws.search_thread=None;ws.search();spinner=ws.gallery.spinner
+    assert spinner is not None and spinner.timer.isActive()
+    ws.reject()
+    assert not spinner.timer.isActive() and ws.gallery.spinner is None
+
+
+def test_new_cover_search_keeps_visible_cards(window,monkeypatch):
+    offline_search(monkeypatch)
+    game=window.games[1];store=window.cover_host.store;view=store.view(game);session=store.session(view)
+    session.results.append(store.add_candidate(view,Candidate('test','Kept',90,local_path='fixture'),Image.new('RGB',(512,512),'red')))
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False)
+    ws.resize(1000,700);ws.show();QTest.qWait(20)
+    cards=list(ws.gallery.cards);assert len(cards)==1
+    ws.search()
+    assert ws.gallery.cards==cards and ws.gallery.spinner is None
+    assert catalog.tr('searching_web') not in visible_gallery_texts(ws)
+    ws.search_failed('offline',ws.search_request)
+    assert ws.gallery.cards==cards
+    ws.reject()
+
+
 def test_import_selection_invalid_blocked_duplicate_unchecked(window):
     dialog=ImportGamesDialog(window.settings,window.games,window)
     records=[(RomLibraryEntry('Covered','CDI','covered.cdi'),''),(RomLibraryEntry('New','GDI','new'),''),(RomLibraryEntry('Broken','GDI','broken'),'missing track')]

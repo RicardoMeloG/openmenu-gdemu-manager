@@ -198,6 +198,7 @@ class ProductionWorkspace(CoverWorkspace):
         self.gallery.search.setEnabled(False)
         self.gallery.search.setText(tr('searching'))
         self.message(tr('search_progress'))
+        self.set_searching(True)
         worker=CoverSearchWorker(self.real,query,self.owner.window.write_allowed)
         self.active_token=token
         start_worker(worker,'search_thread','search_worker',self,
@@ -252,11 +253,17 @@ class ProductionWorkspace(CoverWorkspace):
     @Slot(str)
     def receive_error(self,message):self.search_failed(message,self.active_token)
 
+    def set_searching(self,value):
+        self.searching=value
+        if not self.gallery.cards or self.gallery.spinner is not None:self.gallery.populate()
+
     def search_finished(self,payload,token):
         if self._closed or token!=self.search_request:return
+        self.searching=False
         self.gallery.search.setEnabled(True)
         self.gallery.search.setText(catalog.action_label('search'))
-        if payload.get('cancelled'):self.message(tr('search_cancelled'));return
+        if payload.get('cancelled'):
+            self.set_searching(False);self.message(tr('search_cancelled'));return
         keys=[]
         for candidate,image,error in payload['items']:
             key=self.store.add_candidate(self.game,candidate,image)
@@ -270,6 +277,7 @@ class ProductionWorkspace(CoverWorkspace):
 
     def search_failed(self,message,token):
         if self._closed or token!=self.search_request:return
+        self.set_searching(False)
         self.gallery.search.setEnabled(True)
         self.gallery.search.setText(catalog.action_label('search'))
         self.message(tr('read_failed',reason=message))
