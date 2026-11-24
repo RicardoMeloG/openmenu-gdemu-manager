@@ -76,7 +76,7 @@ def apply_theme(app, value="light"):
     QLabel[tone=pending] {{ color: {c['success']}; font-weight: 600; }}
     QLabel[tone=region] {{ color: {c['focus']}; font-size: {METRICS['font-small']}px; }}
     QFrame#Card, QFrame#Reference {{ border: 1px solid {c['line']}; border-radius: {METRICS['radius']}px; background: {c['paper']}; }}
-    QFrame#Card[chosen=true] {{ border-color: {c['success']}; }}
+    QFrame#Card[chosen=true] {{ border: 3px solid {c['success']}; background: {c['success_soft']}; }}
     QFrame#Row {{ border-bottom: 1px solid {c['line']}; background: {c['surface']}; }}
     QFrame#Row[selected=true] {{ background: {c['accent_soft']}; }}
     QFrame#Row[removed=true] {{ background: {c['soft']}; }}
@@ -98,6 +98,7 @@ def apply_theme(app, value="light"):
     QPushButton:hover {{ border-color: {c['accent']}; }}
     QPushButton:focus, QLineEdit:focus, QComboBox:focus {{ border: 2px solid {c['focus']}; }}
     QPushButton[role=primary] {{ color: {c['paper']}; background: {c['accent']}; border-color: {c['accent']}; font-weight: 600; }}
+    QPushButton[role=success] {{ color: {c['paper']}; background: {c['success']}; border-color: {c['success']}; font-weight: 600; }}
     QPushButton[role=danger] {{ color: {c['danger']}; background: {c['danger_soft']}; border-color: {c['danger']}; }}
     QPushButton:checked {{ background: {c['accent_soft']}; border-color: {c['accent']}; color: {c['accent']}; }}
     QPushButton[attention=true] {{ border: 2px solid {c['success']}; background: {c['success_soft']}; }}
@@ -184,7 +185,7 @@ class Button(QPushButton):
     def refresh_icon(self):
         c = colors()
         role = self.property("role")
-        color = c["muted"] if not self.isEnabled() else c["paper"] if role == "primary" else c["danger"] if role == "danger" else c["ink"]
+        color = c["muted"] if not self.isEnabled() else c["paper"] if role in ("primary", "success") else c["danger"] if role == "danger" else c["ink"]
         self.setIcon(icon(catalog.ACTIONS[self.action]["icon"], color))
 
     def setEnabled(self, value):

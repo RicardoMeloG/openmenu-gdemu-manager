@@ -57,7 +57,8 @@ class Card(QFrame):
         self.enlarge = Button("inspect", lambda: workspace.inspect(key), compact=True)
         self.compare = Button("compare", lambda: workspace.compare(key), text=tr("marked_a") if workspace.session.a == key else None, compact=True)
         self.compare.setEnabled(not item.get('failed'))
-        action = "keep" if workspace.game.cover == key else "select"
+        # The chosen card says so on its own button, in the same green as its frame.
+        action = "chosen" if workspace.game.choice == key else "keep" if workspace.game.cover == key else "select"
         self.choose = Button(action, lambda: workspace.choose(key), compact=True)
         self.choose.setEnabled(workspace.store.writable and not item.get("failed"))
         for b in (self.enlarge, self.compare, self.choose):

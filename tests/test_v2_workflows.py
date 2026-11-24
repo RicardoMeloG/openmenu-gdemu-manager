@@ -442,25 +442,42 @@ def test_pending_save_button_keeps_readable_primary_colors(window):
 
 def test_pending_save_button_breathes_and_counts_changes(window,monkeypatch):
     from PySide6.QtCore import QAbstractAnimation
-    from PySide6.QtWidgets import QGraphicsDropShadowEffect
     from openmenu_gdemu_manager.ui.v2 import main_window as v2
+    from openmenu_gdemu_manager.ui.v2.main_window import RippleEffect
     monkeypatch.setattr(v2,'_animations_enabled',lambda:True)
     window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
     window.apply_filters();window._update_save_button_state()
     button=window.save_changes_button
     assert button.text()==catalog.tr('save_count',count=1)
-    assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect)
+    assert isinstance(button.graphicsEffect(),RippleEffect)
     assert window._breath.state()==QAbstractAnimation.State.Running and not window.save_attention_timer.isActive()
-    window._breathe(1.0);effect=button.graphicsEffect()
-    assert effect.blurRadius()==36 and effect.color().name()==design_accent()
+    # Save is the only filled button while changes wait.
+    assert window.add_game_button.property('role')=='secondary' and button.property('role')=='primary'
+    # A ring that leaves the edge and fades out, then starts again.
+    assert (window._breath.startValue(),window._breath.endValue(),window._breath.loopCount())==(0.0,1.0,-1)
+    window._breathe(0.0);effect=button.graphicsEffect()
+    assert effect.ring_alpha()==230 and effect.color.name()==design_accent()
+    # The ring is really painted just outside the button edge.
+    from PySide6.QtCore import QPoint
+    QApplication.processEvents()
+    edge=button.mapTo(window,QPoint(button.width(),button.height()//2))
+    image=window.grab().toImage();ratio=image.devicePixelRatio()
+    from PySide6.QtGui import QColor
+    accent=QColor(design_accent())
+    ring=[image.pixelColor(int((edge.x()+dx)*ratio),int(edge.y()*ratio)) for dx in range(0,4)]
+    assert any(abs(c.red()-accent.red())<60 and abs(c.green()-accent.green())<60 and abs(c.blue()-accent.blue())<60 for c in ring)
+    window._breathe(1.0)
+    assert effect.ring_alpha()==0
     window.games[1].pending_add=False;window.games[1].save_status=''
     window.apply_filters();window._update_save_button_state()
     assert button.graphicsEffect() is None and window._breath.state()!=QAbstractAnimation.State.Running
+    assert window.add_game_button.property('role')=='primary'
     # With Windows animations off the halo stays, without motion.
     monkeypatch.setattr(v2,'_animations_enabled',lambda:False)
     window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
     window.apply_filters();window._update_save_button_state()
-    assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect) and window._breath.state()!=QAbstractAnimation.State.Running
+    assert isinstance(button.graphicsEffect(),RippleEffect) and window._breath.state()!=QAbstractAnimation.State.Running
+    assert button.graphicsEffect().ring_alpha()>0
 
 
 def test_missing_cover_filter_reads_as_a_checkbox_with_its_count(window,tmp_path):
@@ -953,4 +970,27 @@ def test_choosing_a_large_cover_says_openmenu_stores_256(window,size,resized):
         assert '680 × 680' in text and '256 × 256' in text
     else:
         assert text==catalog.tr('chosen')
+    ws.reject()
+
+
+def test_chosen_card_says_chosen_on_its_button_and_stands_out(window):
+    store=window.cover_host.store;game=window.games[1];view=store.view(game);session=store.session(view)
+    keys=[]
+    for i in range(2):
+        key=store.add_candidate(view,Candidate('test',f'Variant {i}',90,local_path=f'pick-{i}'),Image.new('RGB',(512,512),(40*i,90,160)))
+        session.results.append(key);keys.append(key)
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False);ws.resize(1280,780);ws.show();QTest.qWait(30)
+    ws.choose(keys[0]);QTest.qWait(30)
+    cards={card.key:card for card in ws.gallery.cards}
+    chosen,other=cards[keys[0]],cards[keys[1]]
+    assert chosen.choose.text()==catalog.action_label('chosen') and chosen.choose.property('role')=='success'
+    assert other.choose.text()==catalog.action_label('select') and other.choose.property('role')=='primary'
+    assert chosen.property('chosen') and not other.property('chosen')
+    # The frame is thicker and green, and the card is tinted.
+    from openmenu_gdemu_manager.ui.v2 import design
+    from PySide6.QtGui import QColor
+    image=chosen.grab().toImage();ratio=image.devicePixelRatio()
+    success=QColor(design.colors()['success'])
+    inner=image.pixelColor(int(2*ratio),int(chosen.height()//2*ratio))
+    assert max(abs(inner.red()-success.red()),abs(inner.green()-success.green()),abs(inner.blue()-success.blue()))<40
     ws.reject()
