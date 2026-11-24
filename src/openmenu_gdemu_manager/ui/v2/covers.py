@@ -57,7 +57,8 @@ class Card(QFrame):
         self.enlarge = Button("inspect", lambda: workspace.inspect(key), compact=True)
         self.compare = Button("compare", lambda: workspace.compare(key), text=tr("marked_a") if workspace.session.a == key else None, compact=True)
         self.compare.setEnabled(not item.get('failed'))
-        action = "keep" if workspace.game.cover == key else "select"
+        # The chosen card says so on its own button, in the same green as its frame.
+        action = "chosen" if workspace.game.choice == key else "keep" if workspace.game.cover == key else "select"
         self.choose = Button(action, lambda: workspace.choose(key), compact=True)
         self.choose.setEnabled(workspace.store.writable and not item.get("failed"))
         for b in (self.enlarge, self.compare, self.choose):
@@ -70,6 +71,7 @@ class Gallery(QWidget):
         super().__init__()
         self.workspace = workspace
         self.cards = []
+        self.spinner = None
         self.columns = 3
         root = QVBoxLayout(self)
         root.setContentsMargins(8,8,8,8)
@@ -167,6 +169,7 @@ class Gallery(QWidget):
 
     def populate(self):
         focus=self.focus_target()
+        self.stop_spinner()
         while self.grid.count():
             item = self.grid.takeAt(0)
             if item.widget():
@@ -182,9 +185,24 @@ class Gallery(QWidget):
         if not self.cards:
             empty, layout = box(spacing=12)
             layout.addStretch()
-            layout.addWidget(label(tr("no_results"), heading=True), 0, Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(label(tr("no_results_hint"), muted=True), 0, Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(Button("local_file", ws.import_local, compact=True), 0, Qt.AlignmentFlag.AlignCenter)
+            if ws.searching:
+                # Still searching: say so with the spinning disc, not "no covers found".
+                from ..widgets import SpinnerLabel
+                self.spinner = SpinnerLabel()
+                self.spinner.setFixedSize(64, 64)
+                layout.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(label(tr("searching_web"), heading=True), 0, Qt.AlignmentFlag.AlignCenter)
+                # A wrapped label only gets its full height when it spans the
+                # column; centring the widget itself clips its lines.
+                hint = label(tr("searching_web_hint", query=ws.session.query.strip()), muted=True, wrap=True)
+                hint.setObjectName("SearchingWebHint")
+                hint.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+                layout.addWidget(hint)
+                self.spinner.start()
+            else:
+                layout.addWidget(label(tr("no_results"), heading=True), 0, Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(label(tr("no_results_hint"), muted=True), 0, Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(Button("local_file", ws.import_local, compact=True), 0, Qt.AlignmentFlag.AlignCenter)
             layout.addStretch()
             self.grid.addWidget(empty, 0, 0)
             self.grid_widget.setMinimumHeight(0)
@@ -211,6 +229,12 @@ class Gallery(QWidget):
         self.next.setEnabled(ws.session.page < pages)
         self.scroll.verticalScrollBar().setValue(0)
         if focus:QTimer.singleShot(0,lambda target=focus:self.restore_focus(target))
+
+    def stop_spinner(self):
+        # Stop the disc's timer now; deleteLater alone would keep it ticking.
+        if self.spinner is not None:
+            self.spinner.stop()
+            self.spinner = None
 
     def focus_target(self):
         focused=QApplication.focusWidget()
@@ -520,6 +544,7 @@ class CoverWorkspace(QDialog):
         self.cache = {}
         self.gallery_origin=None
         self.search_request=0
+        self.searching=False
         self._closed=False
         self.finished.connect(self.invalidate_requests)
         root = QVBoxLayout(self)
@@ -534,7 +559,7 @@ class CoverWorkspace(QDialog):
         layout.addWidget(self.title_label)
         layout.addWidget(self.context_label)
         header.addWidget(heading,1)
-        header.addWidget(Button("close",self.reject,icon_only=True,compact=True))
+        # The title bar already closes the window; Escape walks back, then closes.
         root.addWidget(top)
         self.stack = QStackedWidget()
         self.gallery = Gallery(self)
@@ -547,8 +572,10 @@ class CoverWorkspace(QDialog):
         footer, row = box(False,margins=6,name="Footer")
         self.pending_label = label("",muted=True)
         row.addWidget(self.pending_label,1)
-        self.save = Button("save",lambda:self.owner.show_save(self),compact=True)
-        row.addWidget(self.save)
+        # Done only closes: the choice stays pending and is saved together with
+        # the rest of the collection from Save changes in the main window.
+        self.finish_button = Button("done",self.finish,compact=True)
+        row.addWidget(self.finish_button)
         root.addWidget(footer)
         self.refresh()
         QTimer.singleShot(0,self.gallery.query.setFocus)
@@ -571,7 +598,6 @@ class CoverWorkspace(QDialog):
         self.title_label.setText(self.game.title)
         self.context_label.setText(tr("game_context",slot=f"{self.game.slot:03}" if self.game.slot else tr('pending'),region=self.game.region or tr('unidentified'),tab=tr({'gallery':'gallery','inspect':'inspection','compare':'comparison'}[self.session.tab])))
         self.pending_label.setText(tr('chosen_pending' if self.game.choice else 'renamed_pending' if self.game.title!=self.game.original else 'no_pending_choice'))
-        self.save.setEnabled(self.store.writable and bool(self.store.plan()))
         self.back_button.setText(catalog.action_label('back') if self.session.history else tr('collection'))
         self.gallery.refresh()
         self.owner.refresh_collection()
@@ -585,6 +611,8 @@ class CoverWorkspace(QDialog):
     def invalidate_requests(self,*args):
         self._closed=True
         self.search_request+=1
+        self.searching=False
+        self.gallery.stop_spinner()
 
     def rename(self):
         if self.store.rename(self.game,self.session.query):
@@ -662,6 +690,11 @@ class CoverWorkspace(QDialog):
         self.refresh()
         if self.gallery_origin:self.gallery.restore_focus(self.gallery_origin)
         else:self.gallery.query.setFocus()
+
+    def finish(self):
+        """Close like Mi colección, keeping the pending choice; nothing is written."""
+        self.owner.refresh_collection()
+        self.reject()
 
     def back(self):
         if not self.session.back():

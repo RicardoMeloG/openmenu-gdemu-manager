@@ -131,6 +131,17 @@
     "qtAction": "select",
     "qtExtension": false
   },
+  "chosen": {
+    "icon": "circle-check",
+    "label": {
+      "es": "Elegida",
+      "en": "Chosen"
+    },
+    "role": "success",
+    "writes": true,
+    "qtAction": "select",
+    "qtExtension": false
+  },
   "keep": {
     "icon": "circle-check",
     "label": {
@@ -202,6 +213,17 @@
     "label": {
       "es": "Volver",
       "en": "Back"
+    },
+    "role": "secondary",
+    "writes": false,
+    "qtAction": null,
+    "qtExtension": true
+  },
+  "done": {
+    "icon": "check",
+    "label": {
+      "es": "Listo",
+      "en": "Done"
     },
     "role": "secondary",
     "writes": false,

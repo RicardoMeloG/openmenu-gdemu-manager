@@ -3,9 +3,9 @@ from pathlib import Path
 from ...config.settings import load_settings
 import copy
 import shiboken6
-from PySide6.QtCore import Qt,QSize,QTimer,QVariantAnimation,QEasingCurve,QAbstractAnimation
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QHBoxLayout,QHeaderView,QDialog,QMessageBox,QGraphicsDropShadowEffect
+from PySide6.QtCore import Qt,QSize,QTimer,QVariantAnimation,QEasingCurve,QAbstractAnimation,QRectF
+from PySide6.QtGui import QColor,QPainter,QPen
+from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QHBoxLayout,QHeaderView,QDialog,QMessageBox,QGraphicsEffect
 from ... import APP_NAME
 from ...i18n import tr as legacy_tr
 from ...core.image_quality import analyze_image
@@ -33,6 +33,38 @@ def _animations_enabled():
     except (AttributeError,OSError):
         pass
     return True
+
+
+class RippleEffect(QGraphicsEffect):
+    """A crisp ring that leaves the button edge and fades out as it widens."""
+    REACH=9
+
+    def __init__(self,parent=None):
+        super().__init__(parent)
+        self.value=0.0
+        self.color=QColor(design.colors()['accent'])
+
+    def set_value(self,value):
+        self.value=max(0.0,min(1.0,value))
+        self.update()
+
+    def ring_alpha(self):return int(230*(1-self.value))
+
+    def boundingRectFor(self,rect):
+        return rect.adjusted(-self.REACH-2,-self.REACH-2,self.REACH+2,self.REACH+2)
+
+    def draw(self,painter):
+        if self.ring_alpha():
+            spread=1+(self.REACH-1)*self.value
+            color=QColor(self.color);color.setAlpha(self.ring_alpha())
+            radius=design.METRICS['radius']+spread
+            painter.save()
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setPen(QPen(color,1+2*(1-self.value)))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(QRectF(self.sourceBoundingRect()).adjusted(-spread,-spread,spread,spread),radius,radius)
+            painter.restore()
+        self.drawSource(painter)
 
 
 class MainWindowV2(MainWindow):
@@ -97,6 +129,10 @@ class MainWindowV2(MainWindow):
         self.table.verticalHeader().setDefaultSectionSize(76)
         self.table.setAlternatingRowColors(False)
         self.table.setViewportMargins(0,0,0,0)
+        # The original table keeps the bar always on; V2 shows it only when
+        # rows overflow. The stretched name column absorbs its width, so the
+        # fixed columns (Acciones included) keep their size either way.
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         header=self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
         header.moveSection(header.visualIndex(GamesTableModel.C_SLOT),1)
@@ -156,7 +192,9 @@ class MainWindowV2(MainWindow):
             button.setIcon(design.icon(catalog.ACTIONS[action]['icon']))
             button.setIconSize(QSize(20,20))
         self.scan_button.setText('');self.scan_button.setFixedWidth(42)
-        self.add_game_button.setText(catalog.action_label('add'));self.add_game_button.setProperty('role','primary')
+        self.add_game_button.setText(catalog.action_label('add'))
+        # With changes waiting, Save is the only filled button so it stands out.
+        self.add_game_button.setProperty('role','secondary' if self.has_pending_changes() else 'primary')
         self.add_game_button.setEnabled(self.write_allowed and not self.operation_running())
         self.save_changes_button.setProperty('role','primary' if self.has_pending_changes() else 'secondary')
         self.bulk_mode_button.setText(catalog.action_label('bulk_mode'))
@@ -181,8 +219,8 @@ class MainWindowV2(MainWindow):
         self.configuration_note.setToolTip(legacy_tr('v2.gdemu_config.open_details'))
         self.configuration_note.setProperty('tone','warning' if config and config.status in ('invalid','unreadable','review') else '')
         repolish(self.configuration_note)
-        self.guidance.setText(tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else tr('missing_guidance',count=missing) if missing else tr('all_covered') if self.games else tr('collection_empty') if self.diagnostic and self.write_allowed else tr('destination_unknown'))
-        self.summary.setText(tr('collection_count',count=len(self.games),missing=missing))
+        self.guidance.setText(tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else catalog.plural('missing_guidance',missing) if missing else tr('all_covered') if self.games else tr('collection_empty') if self.diagnostic and self.write_allowed else tr('destination_unknown'))
+        self.summary.setText(tr('collection_count',games=catalog.plural('games_count',len(self.games)),missing=catalog.plural('missing_count',missing)))
         caption=tr('missing_only',count=missing)
         if self.missing_button.text()!=caption:
             self.missing_button.setText(caption);self.missing_button.setAccessibleName(caption);self.missing_button.updateGeometry()
@@ -194,8 +232,10 @@ class MainWindowV2(MainWindow):
             button.setIcon(design.icon('plus' if button is self.add_game_button else 'device-floppy',design.colors()['paper'] if primary and button.isEnabled() else design.colors()['ink']))
         self.table.horizontalHeader().viewport().update()
 
-    @staticmethod
-    def is_missing(game):return game.has_placeholder_cover or not game.current_cover
+    def is_missing(self,game):
+        # A cover chosen but not saved yet is shown in the row, so the count,
+        # the filter and bulk preselection treat that game as covered.
+        return (game.has_placeholder_cover or not game.current_cover) and not (self.cover_host and self.cover_host.store.pending_choice(game))
 
     def apply_filters(self):
         if not self._v2_ready:return super().apply_filters()
@@ -389,10 +429,11 @@ class MainWindowV2(MainWindow):
             self.start_scan()
         else:self.apply_filters()
 
-    # Pending-save emphasis (design option 02, "soft breathe"): one smooth
-    # orange halo instead of the legacy green blink, which barely showed on
-    # the orange primary button.
-    BREATH_MS=1800
+    # Pending-save emphasis: Save is the only filled button while changes wait,
+    # and a ring leaves its edge and fades out, then starts again. The earlier
+    # back-and-forth halo barely showed next to another orange button.
+    BREATH_MS=1600
+    STEADY_RING=.3
 
     def _update_save_button_state(self):
         super()._update_save_button_state()
@@ -409,29 +450,28 @@ class MainWindowV2(MainWindow):
         self._glow_targets=[b for b in buttons if b.property('attention')=='true' and b.isEnabled()]
         for button in buttons:
             effect=button.graphicsEffect()
-            if button in self._glow_targets and not isinstance(effect,QGraphicsDropShadowEffect):
-                effect=QGraphicsDropShadowEffect(button);effect.setOffset(0,0);button.setGraphicsEffect(effect)
+            if button in self._glow_targets and not isinstance(effect,RippleEffect):
+                button.setGraphicsEffect(RippleEffect(button))
             elif button not in self._glow_targets and effect is not None:
                 button.setGraphicsEffect(None)
         breath=getattr(self,'_breath',None)
         if breath is None:
             breath=self._breath=QVariantAnimation(self)
             breath.setDuration(self.BREATH_MS);breath.setLoopCount(-1)
-            breath.setStartValue(0.0);breath.setKeyValueAt(0.5,1.0);breath.setEndValue(0.0)
-            breath.setEasingCurve(QEasingCurve.Type.InOutSine)
+            breath.setStartValue(0.0);breath.setEndValue(1.0)
+            breath.setEasingCurve(QEasingCurve.Type.OutCubic)
             breath.valueChanged.connect(self._breathe)
         if not self._glow_targets:breath.stop();return
         if not _animations_enabled():
             # Windows "Show animations" off: keep a steady halo, no motion.
-            breath.stop();self._breathe(.7);return
+            breath.stop();self._breathe(self.STEADY_RING);return
         if breath.state()!=QAbstractAnimation.State.Running:breath.start()
 
     def _breathe(self,value):
         for button in getattr(self,'_glow_targets',[]):
             effect=button.graphicsEffect()
-            if not isinstance(effect,QGraphicsDropShadowEffect):continue
-            color=QColor(design.colors()['accent']);color.setAlpha(int(70+160*value))
-            effect.setColor(color);effect.setBlurRadius(8+28*value)
+            if not isinstance(effect,RippleEffect):continue
+            effect.color=QColor(design.colors()['accent']);effect.set_value(value)
 
     def save_finished(self,message):
         self._before_edits.clear()

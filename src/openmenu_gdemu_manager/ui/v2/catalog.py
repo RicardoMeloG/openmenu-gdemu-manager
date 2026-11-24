@@ -12,6 +12,11 @@ def tr(key, **values):
     return app_tr('v2.'+key, **values)
 
 
+def plural(key, count, **values):
+    """Text for a count; the key with suffix _one is the singular form."""
+    return tr(key+'_one' if count==1 else key, count=count, **values)
+
+
 def action_label(key):
     return app_tr('v2.action.'+key)
 

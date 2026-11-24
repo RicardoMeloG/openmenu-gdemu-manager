@@ -16,7 +16,11 @@ attention, and its details action sits beside the guidance banner. A
 «Solo sin carátula (n)» checkbox filters games without a cover, and the save
 button counts pending changes and breathes an orange halo while they exist.
 The cover workspace helps fans find a design, inspect its scan and choose it.
-It starts with six alternatives per page, across every available region. Click
+It starts with six alternatives per page, across every available region. While a
+web search runs and no alternative is shown yet, the gallery shows the app's
+spinning disc and «Buscando imágenes en la web» instead of an empty result; the
+disc stops when results arrive, the search fails or the window closes, and a new
+search keeps the alternatives already shown. Click
 an image to enlarge it; compare two distinct images side by side or by alternation,
 with zoom and synchronized pan. `100 %` draws one image pixel per physical
 screen pixel whatever the Windows display scaling, and the fitted view states
@@ -86,7 +90,10 @@ Native file pickers remain OS-owned. See [screen coverage and visual review](V2_
    the web do not choose it or write to the SD. Keeping the current image does
    not prepare a replacement. Exact image duplicates are merged; different
    scans/tones remain alternatives under the original deduplication rules.
-6. Review and save validates the intentional choices and confirms the storage
+   The cover window footer offers Listo/Done, which closes the window like
+   Mi colección and keeps the draft; it never saves. The main window's
+   Guardar cambios/Save changes saves every pending change together.
+6. Save changes validates the intentional choices and confirms the storage
    plan before materializing them through the original cover service and
    starting the transactional worker. Cancelling leaves drafts and local cover
    state untouched; Discard/Keep can remove the choice without a hidden save.

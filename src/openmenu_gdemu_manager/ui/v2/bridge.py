@@ -82,14 +82,6 @@ class CoverHost(QWidget):
         dialog.exec()
         if dialog.clickedButton() is accept:callback()
 
-    def show_save(self,parent=None):
-        try:started=self.window.save_changes_to_sd()
-        except Exception as exc:
-            self.window.show_error(str(exc));return
-        if isinstance(parent,CoverWorkspace):
-            if started:parent.accept()
-            else:parent.refresh()
-
     def show_info(self,game,parent=None,image_key=None):
         real=game.real
         dialog=QDialog(parent or self.window)
@@ -170,7 +162,6 @@ class ProductionWorkspace(CoverWorkspace):
         self.retry_worker=None
         super().__init__(host,host.store.view(real))
         self.setWindowIcon(host.window.windowIcon())
-        self.save.setEnabled(host.window.write_allowed and host.window.has_pending_changes())
         if auto_search:QTimer.singleShot(0,self.search)
 
     def pixmap(self,key):
@@ -198,6 +189,7 @@ class ProductionWorkspace(CoverWorkspace):
         self.gallery.search.setEnabled(False)
         self.gallery.search.setText(tr('searching'))
         self.message(tr('search_progress'))
+        self.set_searching(True)
         worker=CoverSearchWorker(self.real,query,self.owner.window.write_allowed)
         self.active_token=token
         start_worker(worker,'search_thread','search_worker',self,
@@ -252,11 +244,17 @@ class ProductionWorkspace(CoverWorkspace):
     @Slot(str)
     def receive_error(self,message):self.search_failed(message,self.active_token)
 
+    def set_searching(self,value):
+        self.searching=value
+        if not self.gallery.cards or self.gallery.spinner is not None:self.gallery.populate()
+
     def search_finished(self,payload,token):
         if self._closed or token!=self.search_request:return
+        self.searching=False
         self.gallery.search.setEnabled(True)
         self.gallery.search.setText(catalog.action_label('search'))
-        if payload.get('cancelled'):self.message(tr('search_cancelled'));return
+        if payload.get('cancelled'):
+            self.set_searching(False);self.message(tr('search_cancelled'));return
         keys=[]
         for candidate,image,error in payload['items']:
             key=self.store.add_candidate(self.game,candidate,image)
@@ -270,13 +268,10 @@ class ProductionWorkspace(CoverWorkspace):
 
     def search_failed(self,message,token):
         if self._closed or token!=self.search_request:return
+        self.set_searching(False)
         self.gallery.search.setEnabled(True)
         self.gallery.search.setText(catalog.action_label('search'))
         self.message(tr('read_failed',reason=message))
-
-    def refresh(self):
-        super().refresh()
-        self.save.setEnabled(self.owner.window.write_allowed and self.owner.window.has_pending_changes())
 
     def invalidate_requests(self,*args):
         super().invalidate_requests(*args)

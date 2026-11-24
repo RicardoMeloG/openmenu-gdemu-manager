@@ -205,6 +205,76 @@ def test_readonly_blocks_mutations_and_stale_search_ignored(window):
     assert not store.session(view).results
 
 
+def offline_search(monkeypatch):
+    """Start the cover search without network: the worker never runs."""
+    from openmenu_gdemu_manager.ui.v2 import bridge
+    def fake_start(worker,thread_attr,worker_attr,owner,*args,**kwargs):
+        setattr(owner,thread_attr,QThread());setattr(owner,worker_attr,worker)
+    monkeypatch.setattr(bridge,'start_worker',fake_start)
+
+
+def visible_gallery_texts(ws):
+    from PySide6.QtWidgets import QLabel
+    return [l.text() for l in ws.gallery.grid_widget.findChildren(QLabel) if l.isVisible()]
+
+
+def test_cover_search_shows_spinning_disc_until_results_arrive(window,monkeypatch):
+    offline_search(monkeypatch)
+    ws=ProductionWorkspace(window.cover_host,window.games[1],auto_search=False)
+    ws.resize(1000,700);ws.show();QTest.qWait(20)
+    ws.search();QTest.qWait(80)
+    spinner=ws.gallery.spinner
+    assert spinner is not None and spinner.isVisible() and spinner.timer.isActive()
+    angle=spinner.angle;QTest.qWait(120);assert spinner.angle!=angle
+    texts=visible_gallery_texts(ws)
+    assert catalog.tr('searching_web') in texts
+    assert catalog.tr('searching_web_hint',query='Missing') in texts
+    assert catalog.tr('no_results') not in texts
+    from PySide6.QtWidgets import QLabel
+    hint=ws.gallery.grid_widget.findChild(QLabel,'SearchingWebHint')
+    # Every wrapped line of the hint is visible, not clipped.
+    assert hint.height()>=hint.heightForWidth(hint.width())
+    ws.search_finished({'items':[],'query':'Missing'},ws.search_request)
+    assert not spinner.timer.isActive() and ws.gallery.spinner is None and not ws.searching
+    QApplication.processEvents()
+    texts=visible_gallery_texts(ws)
+    assert catalog.tr('no_results') in texts and catalog.tr('searching_web') not in texts
+    ws.reject()
+
+
+def test_cover_search_failure_or_close_stops_spinning_disc(window,monkeypatch):
+    offline_search(monkeypatch)
+    ws=ProductionWorkspace(window.cover_host,window.games[1],auto_search=False)
+    ws.resize(1000,700);ws.show();QTest.qWait(20)
+    ws.search();spinner=ws.gallery.spinner
+    assert spinner is not None and spinner.timer.isActive()
+    ws.search_failed('offline',ws.search_request)
+    assert not spinner.timer.isActive() and ws.gallery.spinner is None and not ws.searching
+    QApplication.processEvents()
+    texts=visible_gallery_texts(ws)
+    assert catalog.tr('no_results') in texts and catalog.tr('searching_web') not in texts
+    assert ws.feedback.text()==catalog.tr('read_failed',reason='offline')
+    ws.search_thread=None;ws.search();spinner=ws.gallery.spinner
+    assert spinner is not None and spinner.timer.isActive()
+    ws.reject()
+    assert not spinner.timer.isActive() and ws.gallery.spinner is None
+
+
+def test_new_cover_search_keeps_visible_cards(window,monkeypatch):
+    offline_search(monkeypatch)
+    game=window.games[1];store=window.cover_host.store;view=store.view(game);session=store.session(view)
+    session.results.append(store.add_candidate(view,Candidate('test','Kept',90,local_path='fixture'),Image.new('RGB',(512,512),'red')))
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False)
+    ws.resize(1000,700);ws.show();QTest.qWait(20)
+    cards=list(ws.gallery.cards);assert len(cards)==1
+    ws.search()
+    assert ws.gallery.cards==cards and ws.gallery.spinner is None
+    assert catalog.tr('searching_web') not in visible_gallery_texts(ws)
+    ws.search_failed('offline',ws.search_request)
+    assert ws.gallery.cards==cards
+    ws.reject()
+
+
 def test_import_selection_invalid_blocked_duplicate_unchecked(window):
     dialog=ImportGamesDialog(window.settings,window.games,window)
     records=[(RomLibraryEntry('Covered','CDI','covered.cdi'),''),(RomLibraryEntry('New','GDI','new'),''),(RomLibraryEntry('Broken','GDI','broken'),'missing track')]
@@ -442,25 +512,42 @@ def test_pending_save_button_keeps_readable_primary_colors(window):
 
 def test_pending_save_button_breathes_and_counts_changes(window,monkeypatch):
     from PySide6.QtCore import QAbstractAnimation
-    from PySide6.QtWidgets import QGraphicsDropShadowEffect
     from openmenu_gdemu_manager.ui.v2 import main_window as v2
+    from openmenu_gdemu_manager.ui.v2.main_window import RippleEffect
     monkeypatch.setattr(v2,'_animations_enabled',lambda:True)
     window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
     window.apply_filters();window._update_save_button_state()
     button=window.save_changes_button
     assert button.text()==catalog.tr('save_count',count=1)
-    assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect)
+    assert isinstance(button.graphicsEffect(),RippleEffect)
     assert window._breath.state()==QAbstractAnimation.State.Running and not window.save_attention_timer.isActive()
-    window._breathe(1.0);effect=button.graphicsEffect()
-    assert effect.blurRadius()==36 and effect.color().name()==design_accent()
+    # Save is the only filled button while changes wait.
+    assert window.add_game_button.property('role')=='secondary' and button.property('role')=='primary'
+    # A ring that leaves the edge and fades out, then starts again.
+    assert (window._breath.startValue(),window._breath.endValue(),window._breath.loopCount())==(0.0,1.0,-1)
+    window._breathe(0.0);effect=button.graphicsEffect()
+    assert effect.ring_alpha()==230 and effect.color.name()==design_accent()
+    # The ring is really painted just outside the button edge.
+    from PySide6.QtCore import QPoint
+    QApplication.processEvents()
+    edge=button.mapTo(window,QPoint(button.width(),button.height()//2))
+    image=window.grab().toImage();ratio=image.devicePixelRatio()
+    from PySide6.QtGui import QColor
+    accent=QColor(design_accent())
+    ring=[image.pixelColor(int((edge.x()+dx)*ratio),int(edge.y()*ratio)) for dx in range(0,4)]
+    assert any(abs(c.red()-accent.red())<60 and abs(c.green()-accent.green())<60 and abs(c.blue()-accent.blue())<60 for c in ring)
+    window._breathe(1.0)
+    assert effect.ring_alpha()==0
     window.games[1].pending_add=False;window.games[1].save_status=''
     window.apply_filters();window._update_save_button_state()
     assert button.graphicsEffect() is None and window._breath.state()!=QAbstractAnimation.State.Running
+    assert window.add_game_button.property('role')=='primary'
     # With Windows animations off the halo stays, without motion.
     monkeypatch.setattr(v2,'_animations_enabled',lambda:False)
     window.games[1].pending_add=True;window.games[1].save_status='pendiente_guardar'
     window.apply_filters();window._update_save_button_state()
-    assert isinstance(button.graphicsEffect(),QGraphicsDropShadowEffect) and window._breath.state()!=QAbstractAnimation.State.Running
+    assert isinstance(button.graphicsEffect(),RippleEffect) and window._breath.state()!=QAbstractAnimation.State.Running
+    assert button.graphicsEffect().ring_alpha()>0
 
 
 def test_missing_cover_filter_reads_as_a_checkbox_with_its_count(window,tmp_path):
@@ -509,6 +596,67 @@ def test_new_bulk_proposal_replaces_the_cached_thumbnail(window):
     window.receive_bulk_proposal(BulkProposal(3,candidate,Image.new('RGB',(64,64),(255,0,0)),status='revision'))
     second=model._cover_pixmap(game,window.bulk_proposals[3]).toImage().pixelColor(30,30)
     assert first.blue()>200 and second.red()>200 and second.blue()<60
+
+
+@pytest.mark.parametrize('language',['es','en'])
+def test_chosen_cover_is_previewed_in_the_collection_until_discarded(window,language):
+    from PySide6.QtGui import QColor,QImage,QPainter
+    from PySide6.QtWidgets import QStyleOptionViewItem
+    from openmenu_gdemu_manager.ui.v2 import design
+    set_language(language)
+    store=window.cover_host.store;model=window.games_model
+    new,existing=window.games[1],window.games[2]
+    new.pending_add=True;window.apply_filters()
+    def row(game):return model._games.index(game)
+    def status(game):return model.data(model.index(row(game),model.C_STATUS))
+    def cover_cell(game):
+        image=QImage(96,96,QImage.Format.Format_RGB32);image.fill(0xffffff);painter=QPainter(image)
+        option=QStyleOptionViewItem();option.rect=image.rect()
+        window.table.itemDelegate().paint(painter,option,model.index(row(game),model.C_COVER));painter.end()
+        return image
+    def is_blue(color):return color.blue()>200 and color.red()<60 and color.green()<80
+    def choose(game):
+        view=store.view(game);key=store.add_candidate(view,Candidate('test','Pick',90,local_path='pick-'+game.name),Image.new('RGB',(512,512),(20,40,230)))
+        store.session(view).results.append(key)
+        ws=ProductionWorkspace(window.cover_host,game,auto_search=False);ws.show();QTest.qWait(10)
+        ws.choose(key);QTest.qWait(10)
+        return ws
+    assert catalog.tr('no_cover') in status(new) and not is_blue(cover_cell(new).pixelColor(48,48))
+    summary={'es':('3 juegos · 2 sin carátula','3 juegos · 1 sin carátula'),'en':('3 games · 2 without covers','3 games · 1 without a cover')}[language]
+    assert window.summary.text()==summary[0]
+    ws=choose(new)
+    # Choosing refreshes the list behind the cover window: the row shows the
+    # choice, framed in the green dashed border of a cover not on the SD yet.
+    assert status(new).splitlines()==[catalog.tr('chosen_cover'),catalog.tr('new_pending')]
+    image=cover_cell(new);assert is_blue(image.pixelColor(48,48))
+    success=QColor(design.colors()['success'])
+    frame=[image.pixelColor(x,y) for x in range(96) for y in (7,8,9,10,11)]
+    assert any(max(abs(c.red()-success.red()),abs(c.green()-success.green()),abs(c.blue()-success.blue()))<30 for c in frame)
+    # It no longer counts or filters as missing a cover.
+    assert window.summary.text()==summary[1]
+    assert window.missing_button.text()==catalog.tr('missing_only',count=1)
+    window.missing_button.setChecked(True);window.toggle_missing()
+    assert window.filtered_games==[existing]
+    window.missing_button.setChecked(False);window.toggle_missing()
+    ws.discard();QTest.qWait(10)
+    assert catalog.tr('no_cover') in status(new) and catalog.tr('chosen_cover') not in status(new)
+    assert not is_blue(cover_cell(new).pixelColor(48,48))
+    assert window.summary.text()==summary[0]
+    ws.reject()
+    # An existing game says it in one line; discarding all pending changes clears it.
+    choose(existing).reject();QApplication.processEvents()
+    assert status(existing)==catalog.tr('pending_cover') and is_blue(cover_cell(existing).pixelColor(48,48))
+    window.discard_pending_changes()
+    assert status(existing)==catalog.tr('no_cover') and not is_blue(cover_cell(existing).pixelColor(48,48))
+
+
+@pytest.mark.parametrize('language',['es','en'])
+def test_collection_counts_use_the_singular_for_one(window,language):
+    set_language(language)
+    window.games=window.games[1:2];window.games_by_slot={3:window.games[0]};window.apply_filters()
+    expected={'es':('1 juego · 1 sin carátula','1 juego sin carátula.'),'en':('1 game · 1 without a cover','1 game without a cover.')}[language]
+    assert window.summary.text()==expected[0]
+    assert window.guidance.text().startswith(expected[1])
 
 
 def test_animations_setting_reads_a_full_windows_bool():
@@ -954,3 +1102,116 @@ def test_choosing_a_large_cover_says_openmenu_stores_256(window,size,resized):
     else:
         assert text==catalog.tr('chosen')
     ws.reject()
+
+
+@pytest.mark.parametrize('how',['escape','title_bar'])
+def test_cover_window_has_no_inner_close_button_and_still_closes(window,how):
+    """The title bar X is the only close control; Escape and the title bar still reject."""
+    from PySide6.QtWidgets import QDialog,QPushButton,QWidget
+    ws=ProductionWorkspace(window.cover_host,window.games[1],auto_search=False);ws.resize(1280,780);ws.show();QTest.qWait(30)
+    close_label=catalog.action_label('close')
+    assert not [b for b in ws.findChildren(QPushButton) if getattr(b,'action',None)=='close' or (not b.text() and b.toolTip()==close_label)]
+    # Header: «Mi colección» on the left and the title reaching the right margin, with no gap.
+    top=ws.findChild(QWidget,'Top');heading=ws.title_label.parentWidget()
+    # Nested layouts settle over two event-loop passes: activating the heading's
+    # layout invalidates the header's again. At 2.5× the first paint can use up a
+    # fixed short wait, so wait for the header layout itself before measuring it.
+    for _ in range(200):
+        if top.layout().geometry().isValid():break
+        QTest.qWait(10)
+    assert top.layout().geometry().isValid()
+    assert ws.back_button.text()==catalog.tr('collection') and ws.back_button.geometry().right()<heading.geometry().left()
+    assert heading.geometry().right()==top.layout().contentsRect().right()
+    # Tab goes from «Mi colección» straight to the search field.
+    ws.activateWindow();ws.back_button.setFocus();QTest.keyClick(ws.back_button,Qt.Key.Key_Tab)
+    assert QApplication.focusWidget() is ws.gallery.query
+    finished=[];ws.finished.connect(finished.append)
+    if how=='escape':QTest.keyClick(ws.gallery.query,Qt.Key.Key_Escape)
+    else:ws.close()
+    QApplication.processEvents()
+    assert finished==[QDialog.DialogCode.Rejected] and not ws.isVisible()
+
+
+@pytest.mark.parametrize('language',['es','en'])
+def test_cover_window_done_closes_and_keeps_the_choice_without_saving(window,monkeypatch,language):
+    """«Listo» replaces «Revisar y guardar»: it closes like Mi colección and never writes."""
+    from PySide6.QtGui import QImage,QPainter
+    from PySide6.QtWidgets import QDialog,QPushButton,QStyleOptionViewItem
+    set_language(language)
+    def forbidden(*args,**kwargs):raise AssertionError('The cover window must not save')
+    monkeypatch.setattr(window,'save_changes_to_sd',forbidden)
+    assert not hasattr(window.cover_host,'show_save')
+    store=window.cover_host.store;model=window.games_model;game=window.games[1];view=store.view(game)
+    key=store.add_candidate(view,Candidate('test','Pick',90,local_path='done-pick'),Image.new('RGB',(512,512),(20,40,230)))
+    store.session(view).results.append(key)
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False);ws.resize(1280,780);ws.show();QTest.qWait(30)
+    done=ws.finish_button
+    assert done.text()=={'es':'Listo','en':'Done'}[language]==catalog.action_label('done')
+    assert not [b for b in ws.findChildren(QPushButton) if getattr(b,'action',None)=='save']
+    # Always available, even before anything is chosen; the footer still fits it.
+    assert done.isEnabled() and not window.has_pending_changes()
+    footer=done.parentWidget()
+    assert footer.rect().contains(done.geometry()) and done.width()>=done.sizeHint().width()
+    ws.choose(key);QTest.qWait(10)
+    assert done.isEnabled() and view.choice==key
+    finished=[];ws.finished.connect(finished.append)
+    QTest.mouseClick(done,Qt.MouseButton.LeftButton);QApplication.processEvents()
+    assert finished==[QDialog.DialogCode.Rejected] and not ws.isVisible()
+    # The choice stays pending for Guardar cambios, and the list shows it.
+    assert view.choice==key and window.has_pending_changes() and not game.selected_image
+    row=model._games.index(game)
+    assert catalog.tr('chosen_cover') in model.data(model.index(row,model.C_STATUS))
+    image=QImage(96,96,QImage.Format.Format_RGB32);image.fill(0xffffff);painter=QPainter(image)
+    option=QStyleOptionViewItem();option.rect=image.rect()
+    window.table.itemDelegate().paint(painter,option,model.index(row,model.C_COVER));painter.end()
+    color=image.pixelColor(48,48)
+    assert color.blue()>200 and color.red()<60 and color.green()<80
+
+
+def test_v2_windows_do_not_build_an_icon_only_close_button():
+    import re
+    source=Path(catalog.__file__).parent
+    pattern=re.compile(r"""Button\(\s*['"]close['"][^\n]*icon_only\s*=\s*True""")
+    assert not [path.name for path in source.glob('*.py') if pattern.search(path.read_text(encoding='utf-8'))]
+
+
+def test_chosen_card_says_chosen_on_its_button_and_stands_out(window):
+    store=window.cover_host.store;game=window.games[1];view=store.view(game);session=store.session(view)
+    keys=[]
+    for i in range(2):
+        key=store.add_candidate(view,Candidate('test',f'Variant {i}',90,local_path=f'pick-{i}'),Image.new('RGB',(512,512),(40*i,90,160)))
+        session.results.append(key);keys.append(key)
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False);ws.resize(1280,780);ws.show();QTest.qWait(30)
+    ws.choose(keys[0]);QTest.qWait(30)
+    cards={card.key:card for card in ws.gallery.cards}
+    chosen,other=cards[keys[0]],cards[keys[1]]
+    assert chosen.choose.text()==catalog.action_label('chosen') and chosen.choose.property('role')=='success'
+    assert other.choose.text()==catalog.action_label('select') and other.choose.property('role')=='primary'
+    assert chosen.property('chosen') and not other.property('chosen')
+    # The frame is thicker and green, and the card is tinted.
+    from openmenu_gdemu_manager.ui.v2 import design
+    from PySide6.QtGui import QColor
+    image=chosen.grab().toImage();ratio=image.devicePixelRatio()
+    success=QColor(design.colors()['success'])
+    inner=image.pixelColor(int(2*ratio),int(chosen.height()//2*ratio))
+    assert max(abs(inner.red()-success.red()),abs(inner.green()-success.green()),abs(inner.blue()-success.blue()))<40
+    ws.reject()
+
+
+@pytest.mark.parametrize('count,scrolls',[(5,False),(30,True)])
+def test_collection_scroll_bar_only_when_rows_overflow_and_actions_stay_whole(window,count,scrolls):
+    window.games=[GameItem(slot,f'Game {slot}',has_placeholder_cover=True) for slot in range(2,2+count)]
+    window.games_by_slot={g.slot:g for g in window.games}
+    window.resize(1280,780);window.apply_filters();QTest.qWait(30)
+    table=window.table;bar=table.verticalScrollBar();viewport=table.viewport()
+    assert (bar.maximum()>0)==scrolls
+    assert bar.isVisible()==scrolls
+    assert not table.horizontalScrollBar().isVisible()
+    # Acciones keeps its fixed width and ends inside the viewport, next to the
+    # bar when it shows; only the stretched name column gives up the space.
+    actions=GamesTableModel.C_ACTIONS
+    assert table.columnWidth(actions)==120
+    right=table.horizontalHeader().sectionViewportPosition(actions)+table.columnWidth(actions)
+    assert 0<right<=viewport.width()
+    if scrolls:
+        assert viewport.mapTo(table,viewport.rect().topRight()).x()<bar.mapTo(table,bar.rect().topLeft()).x()
