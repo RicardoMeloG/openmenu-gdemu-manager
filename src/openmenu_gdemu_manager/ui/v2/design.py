@@ -93,6 +93,15 @@ def apply_theme(app, value="light"):
     QFrame#InfoSection {{ border: 1px solid {c['line']}; border-radius: {METRICS['radius']}px; background: {c['paper']}; }}
     QLabel#InfoValue[tone=missing] {{ color: {c['muted']}; }}
     QLabel#TileTitle {{ color: {c['muted']}; font-size: {METRICS['font-small']}px; }}
+    QLabel#ApplyPlate {{ background: {c['soft']}; border-radius: 12px; }}
+    QLabel#ApplyPlate[plate=success] {{ background: {c['success_soft']}; }}
+    QLabel#ApplyPlate[plate=accent] {{ background: {c['accent_soft']}; }}
+    QLabel#ApplyPlate[plate=danger] {{ background: {c['danger_soft']}; }}
+    QLabel#ApplyPlate[plate=warning] {{ background: {c['warning_soft']}; }}
+    QLabel#ApplyCount {{ font-size: 26px; font-weight: 600; }}
+    QLabel#ApplyCount[zero=true] {{ color: {c['muted']}; font-weight: 400; }}
+    QLabel#ApplyValue {{ font-size: 16px; font-weight: 600; }}
+    QLabel#ApplyDetail, QLabel#ApplySafetyText {{ color: {c['muted']}; font-size: {METRICS['font-small']}px; }}
     QLabel#BusyTitle {{ font-weight: 600; }}
     QLabel#BusyDetail {{ color: {c['muted']}; }}
     QWidget#BusyOverlay {{ background: rgba(8, 15, 20, 0.55); }}

@@ -793,6 +793,27 @@ def test_cover_materialization_occurs_only_after_accepted_review(window,monkeypa
     assert events==['review','persist','worker']
 
 
+def test_review_counts_a_new_game_cover_with_the_new_game(window,monkeypatch,tmp_path):
+    from PySide6.QtWidgets import QDialog
+    from openmenu_gdemu_manager.ui.v2 import main_window as v2
+    cover=tmp_path/'new-cover.png';Image.new('RGB',(512,512),'green').save(cover)
+    new=GameItem(5,'New game',source_path=str(tmp_path/'new.gdi'),pending_add=True,is_new=True,save_status='pendiente_guardar',selected_image=str(cover))
+    window.games.append(new);window.games_by_slot[5]=new
+    store=window.cover_host.store;view=store.view(window.games[1])
+    store.choose(view,store.add_candidate(view,Candidate('test','Blue',99),Image.new('RGB',(512,512),'blue')))
+    seen=[]
+    def review(dialog):
+        seen.append(dialog);return QDialog.DialogCode.Rejected
+    monkeypatch.setattr(v2.ConfirmApplyDialog,'exec',review)
+    window.save_changes_to_sd()
+    dialog,=seen
+    # Two covers are written, but one belongs to the game being copied.
+    assert (dialog.covers,dialog.new_game_covers,dialog.cover_changes,dialog.additions)==(2,1,1,1)
+    assert dialog.tiles['covers'].value_label.text()=='1' and dialog.tiles['additions'].value_label.text()=='1'
+    assert dialog.cover_changes+dialog.additions==window.pending_change_count()
+    assert view.choice and not window.games[1].selected_image
+
+
 def test_search_worker_delivers_on_gui_thread(window,monkeypatch):
     from openmenu_gdemu_manager.ui import workers
     monkeypatch.setattr(workers,'find_candidates',lambda *a,**kw:[])

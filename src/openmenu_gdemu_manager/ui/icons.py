@@ -105,8 +105,6 @@ def _v2_icon(name: str, variant: str, size: int) -> QIcon | None:
     if app is None or not app.property('v2Design'):
         return None
     from .v2 import design, catalog
-    # Deliberate equivalents in the shared family; never a warning fallback.
-    name = {'arrows-shuffle': 'hierarchy', 'id': 'file'}.get(name, name)
     if not (catalog.REFERENCE / 'icons' / f'{name}.svg').is_file():
         return None
     color = design.colors().get({'default': 'ink', 'accent': 'accent'}.get(variant, variant), design.colors()['ink'])
@@ -219,6 +217,8 @@ def _variant_color(palette: dict, variant: str) -> str:
         return palette["danger"]
     if variant in {"accent", "toggle"}:
         return palette["accent"]
+    if variant == "muted":
+        return palette["muted"]
     return palette["text"]
 
 

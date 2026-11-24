@@ -542,6 +542,30 @@ QLabel#TileValue {{
     font-size: 10pt;
     background: transparent;
 }}
+QLabel#ApplyPlate {{
+    background: {c['surface_alt']};
+    border-radius: 12px;
+}}
+QLabel#ApplyPlate[plate="success"] {{ background: {c['success_soft']}; }}
+QLabel#ApplyPlate[plate="accent"] {{ background: {c['accent_soft']}; }}
+QLabel#ApplyPlate[plate="danger"] {{ background: {c['danger_soft']}; }}
+QLabel#ApplyPlate[plate="warning"] {{ background: {c['warning_soft']}; }}
+QLabel#ApplyCount {{
+    font-size: 19pt;
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#ApplyCount[zero="true"] {{ color: {c['muted']}; font-weight: 400; }}
+QLabel#ApplyValue {{
+    font-size: 12pt;
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#ApplyDetail, QLabel#ApplySafetyText {{
+    color: {c['muted']};
+    font-size: 9pt;
+    background: transparent;
+}}
 QLabel#CountBadge {{
     background: {c['muted']};
     color: {c['surface']};

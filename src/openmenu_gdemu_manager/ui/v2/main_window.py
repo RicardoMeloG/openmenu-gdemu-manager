@@ -382,11 +382,13 @@ class MainWindowV2(MainWindow):
                 prepared.append((view,key,image,quality))
         if not self.has_pending_changes():return
         if confirm:
-            cover_slots={g.slot for g in self.games if g.save_status=='pendiente_guardar' and bool(g.selected_image) and not g.pending_delete}
-            cover_slots.update(view.real.slot for view,_,_,_ in prepared)
-            covers=len(cover_slots)
-            counts=self._pending_apply_counts(cover_override=covers)
-            dialog=ConfirmApplyDialog(self.root_path,counts['covers'],counts['additions'],counts['deletions'],self,slot_moves=counts['slot_moves'],product_updates=counts['product_updates'])
+            cover_games={g.slot:g for g in self.games if g.save_status=='pendiente_guardar' and bool(g.selected_image) and not g.pending_delete}
+            cover_games.update((view.real.slot,view.real) for view,_,_,_ in prepared)
+            # A new game's cover is copied with that game: the review shows it
+            # with the games to copy, never a second time as a cover change.
+            new_game_covers=sum(bool(g.pending_add) for g in cover_games.values())
+            counts=self._pending_apply_counts(cover_override=len(cover_games))
+            dialog=ConfirmApplyDialog(self.root_path,counts['covers'],counts['additions'],counts['deletions'],self,slot_moves=counts['slot_moves'],product_updates=counts['product_updates'],new_game_covers=new_game_covers)
             if dialog.exec()!=QDialog.DialogCode.Accepted:self.apply_filters();return
         # A rejected review must leave the draft, GameItem and local cover
         # library untouched, so Discard/Keep cannot apply a hidden selection.

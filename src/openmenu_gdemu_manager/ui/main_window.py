@@ -1232,16 +1232,18 @@ class MainWindow(QMainWindow):
     def _pending_apply_counts(self, cover_override: int | None = None) -> dict[str, int]:
         additions = len([game for game in self.games if game.pending_add])
         deletions = len([game for game in self.games if game.pending_delete])
+        new_game_covers = 0
         if cover_override is None:
-            covers = len([
+            cover_games = [
                 game for game in self.games
                 if game.save_status == "pendiente_guardar"
                 and not game.pending_delete
                 and bool(game.selected_image)
                 and Path(game.selected_image).exists()
                 and not game.has_placeholder_cover
-            ])
-            covers += self._valid_bulk_proposal_count()
+            ]
+            covers = len(cover_games) + self._valid_bulk_proposal_count()
+            new_game_covers = len([game for game in cover_games if game.pending_add])
         else:
             covers = cover_override
         plan = SdSlotTransactionService(self.root_path, "preview").build_plan(self.games)
@@ -1251,6 +1253,7 @@ class MainWindow(QMainWindow):
             "deletions": deletions,
             "slot_moves": len(plan.moves),
             "product_updates": len(_product_id_corrections(self.games)),
+            "new_game_covers": new_game_covers,
         }
 
     def _update_save_button_state(self):
@@ -1385,6 +1388,7 @@ class MainWindow(QMainWindow):
                 self,
                 slot_moves=counts["slot_moves"],
                 product_updates=counts["product_updates"],
+                new_game_covers=counts["new_game_covers"],
             )
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
@@ -1657,6 +1661,7 @@ class MainWindow(QMainWindow):
                 self,
                 slot_moves=counts["slot_moves"],
                 product_updates=counts["product_updates"],
+                new_game_covers=counts["new_game_covers"],
             )
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
