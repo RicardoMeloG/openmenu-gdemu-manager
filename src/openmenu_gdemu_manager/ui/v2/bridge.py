@@ -1,23 +1,20 @@
 """Connect approved cover workspace to original search/persistence services."""
 import logging
-from pathlib import Path
 from ...app.logger import logged_operation
 from PIL import Image
 from PySide6.QtCore import QObject,Signal,QTimer,Qt,Slot,QUrl
 from PySide6.QtGui import QPixmap,QDesktopServices
-from PySide6.QtWidgets import QWidget,QDialog,QVBoxLayout,QHBoxLayout,QScrollArea,QMessageBox,QComboBox,QMenu
-from ...core.models import Candidate,VALID_STATES
+from PySide6.QtWidgets import QWidget,QMessageBox,QMenu
+from ...core.models import Candidate
 from ...core.image_quality import normalize_cover,analyze_image
 from ...covers.search import load_candidate_image
-from ...services.cover_library import load_saved_candidates
-from ...i18n import tr as app_tr,translate_status
 from ...config.settings import load_settings,web_search_templates
 from ...config.paths import INBOX_ORIGINALS_DIR
 from ..workers import SearchWorker,start_worker
 from ..image_qt import pil_to_pixmap
 from . import catalog
-from .catalog import tr,variant
-from .design import Button,label,box
+from .catalog import tr
+from .game_info import game_info_dialog,image_info_dialog
 from .covers import CoverWorkspace
 from .state import CoverStore
 
@@ -83,71 +80,8 @@ class CoverHost(QWidget):
         if dialog.clickedButton() is accept:callback()
 
     def show_info(self,game,parent=None,image_key=None):
-        real=game.real
-        dialog=QDialog(parent or self.window)
-        dialog.resize(640,520)
-        dialog.setWindowTitle(catalog.action_label('image_info' if image_key else 'info'))
-        root=QVBoxLayout(dialog)
-        root.setContentsMargins(20,20,20,20)
-        root.addWidget(label(dialog.windowTitle(),heading=True))
-        scroll=QScrollArea()
-        scroll.setWidgetResizable(True)
-        content,listing=box(spacing=6)
-        if image_key:
-            item=self.store.images[image_key]
-            candidate=self.store.candidate_objects.get(image_key)
-            match=tr('product_match') if candidate and candidate.product_match else tr('alias_match') if candidate and candidate.alias_match else tr('edition_warning') if item.get('weak_match') else tr('local_match') if item.get('variant_index') else tr('match_sample')
-            values=[('game',item['title']),('available_design',variant(item)),('region',item['region'] or tr('unidentified')),
-                ('resolution',f"{item['width']} × {item['height']} px"),('quality',tr('cover_quality',label=item.get('quality_label',''),score=item.get('quality_score',0))),
-                ('match',match),('provider',item.get('provider','')),('available_file',item.get('sourceFile','')),
-                ('sources',' · '.join(item.get('duplicate_sources',[])) or tr('unavailable')),('original_image',tr('original_note'))]
-        else:
-            pending=[tr(key) for condition,key in ((real.pending_add,'new_pending'),(real.pending_delete,'remove_pending'),(bool(game.choice) or real.save_status=='pendiente_guardar','pending'),(game.title!=game.original,'name_pending')) if condition]
-            values=[('openmenu_name',game.title),('saved_name',game.original),('internal_name',real.internal_name or tr('unavailable')),
-                ('position',f'{real.slot:03d}'),('region',real.region or tr('unidentified')),('disc_id',real.product_id if not real.product_id.startswith('SLOT') else tr('not_disc_id')),
-                ('technical_reference',real.product_id),('status',' · '.join(pending) or translate_status(real.status)),
-                ('source_path',real.source_path or str(real.folder or '')),('format',real.media_type),('quality',real.quality_label or tr('not_analyzed'))]
-            for key in ('disc','vga','version','date'):
-                listing.addWidget(label(tr(key),muted=True))
-                listing.addWidget(label(str(getattr(real,key,'')) or tr('unavailable'),wrap=True))
-            for code in real.consistency_warnings:
-                listing.addWidget(label(app_tr('scan_repair.warning.'+code),tone='warning',wrap=True))
-        for key,value in values:
-            listing.addWidget(label(tr(key),muted=True))
-            listing.addWidget(label(value or tr('unavailable'),wrap=True))
-        if image_key and candidate:
-            def open_source():
-                url=candidate.source_url or candidate.url
-                if url and QUrl(url).scheme()=='https':QDesktopServices.openUrl(QUrl(url))
-                elif candidate.local_path:self.window.open_path(Path(candidate.local_path).parent)
-            listing.addWidget(Button('web',open_source,text=tr('open_source')))
-        if not image_key:
-            status=QComboBox()
-            for key in sorted(VALID_STATES):status.addItem(translate_status(key),key)
-            status.setCurrentIndex(max(0,status.findData(real.status)))
-            status.setEnabled(self.store.writable)
-            status.currentIndexChanged.connect(lambda:self.window.set_status(real,status.currentData()))
-            listing.addWidget(label(tr('cover_status'),muted=True))
-            listing.addWidget(status)
-            folder=Button('browse',lambda:self.window.open_path(real.folder),text=tr('open_folder'))
-            folder.setEnabled(bool(real.folder))
-            listing.addWidget(folder)
-            undo=Button('undo_name',lambda:(self.store.rename(game,game.original),dialog.accept()))
-            undo.setEnabled(self.store.writable)
-            listing.addWidget(undo)
-            remove=Button('remove',lambda:(dialog.accept(),self.window.toggle_delete_game(real)),text=tr('undo_remove') if real.pending_delete else None)
-            remove.setEnabled(self.store.writable)
-            listing.addWidget(remove)
-            history=load_saved_candidates(real)
-            if history:
-                listing.addWidget(label(tr('history_real'),title=True))
-                for candidate in history:
-                    key=self.store.add_candidate(game,candidate)
-                    listing.addWidget(Button('inspect',lambda _,k=key:(dialog.accept(),self.window.inspect_image(real,k,parent)),text=candidate.title))
-        listing.addStretch()
-        scroll.setWidget(content)
-        root.addWidget(scroll,1)
-        root.addWidget(Button('close',dialog.reject),0,Qt.AlignmentFlag.AlignRight)
+        if image_key:dialog=image_info_dialog(self,game,image_key,parent)
+        else:dialog=game_info_dialog(self,game,parent)
         dialog.exec()
 
 

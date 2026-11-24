@@ -48,6 +48,7 @@ functional/transaction evidence; its approval did not certify all screens.
 | Recovery / repair / generic confirmation | Standard and authored QMessageBox roles/defaults/conditional branches preserved; icons and translated standard buttons. |
 | Template URL / music volume | QInputDialog buttons receive V2 icons and translated labels; OS controls and values preserved. |
 | Exports / template ZIP / image and game pickers | OS-owned file dialogs; parent busy/result/error UI uses V2 treatment. |
+| Game / image information | Replaced V2 card (`ui/v2/game_info.py`) opened by the info action in the collection and the cover window: header with cover, name and chips, consistency warnings, titled sections with small labels and interpreted values, and a footer with Remove/Undo removal, Undo name (only when renamed), Open folder (only when the game has an SD folder) and Close. Review status, saved-cover history and source opening are retained. Height fits the content without scrolling at normal sizes in Spanish and English; the scroll area remains only as a fallback and uses the surface background in both themes. Workflow tests cover saved, new pending and renamed SLOT games and the image card at scales 1 and 2.5. Visual approval is pending. |
 | Collection / cover details / import | Existing dedicated V2 views retained and still exercised by workflow tests. CandidateDialog, CoverPreviewDialog, AddGameDialog and original SetupWizardDialog/BackupPromptDialog are explicitly replaced in V2; legacy UI remains available. |
 
 ## Evidence and approval boundaries

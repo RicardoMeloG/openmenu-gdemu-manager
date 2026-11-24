@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 from PySide6.QtCore import Qt,QThread
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication,QMessageBox
+from PySide6.QtWidgets import QApplication,QMessageBox,QPushButton
 from openmenu_gdemu_manager.core.models import GameItem,Candidate,BulkProposal,RomLibraryEntry
 from openmenu_gdemu_manager.ui import main_window as legacy
 from openmenu_gdemu_manager.ui.v2.main_window import MainWindowV2
@@ -1215,3 +1215,135 @@ def test_collection_scroll_bar_only_when_rows_overflow_and_actions_stay_whole(wi
     assert 0<right<=viewport.width()
     if scrolls:
         assert viewport.mapTo(table,viewport.rect().topRight()).x()<bar.mapTo(table,bar.rect().topLeft()).x()
+
+
+# «Datos del juego»: card with header, sections and interpreted values.
+
+def _open_info(dialog):
+    from PySide6.QtWidgets import QScrollArea
+    dialog.show()
+    # Nested layouts settle over several event-loop turns (slower at 2.5x).
+    for _ in range(100):
+        QTest.qWait(20)
+        if dialog.findChild(QScrollArea).widget().height()>0 and dialog.close_button.height()>0:break
+    QTest.qWait(40)
+    return dialog.findChild(QScrollArea)
+
+
+def _value(dialog,section,key):
+    return dialog.sections[section].values[key].text()
+
+
+def _close_info(dialog):
+    dialog.reject();dialog.deleteLater();QApplication.processEvents()
+
+
+def test_game_info_value_interpretation_helpers():
+    from openmenu_gdemu_manager.ui.v2.game_info import region_text,date_text,vga_text,disc_text
+    set_language('es')
+    assert region_text('U')=='EE. UU.' and region_text('E')=='Europa' and region_text('J')=='Japón'
+    assert region_text('JUE')=='Japón · EE. UU. · Europa' and region_text('US')=='EE. UU.' and region_text('EU')=='Europa'
+    assert region_text('')=='' and region_text('XYZ')==''
+    assert date_text('00000000')=='Sin fecha' and date_text('')=='Sin fecha' and date_text('2000113')=='Sin fecha'
+    assert date_text('19990909')=='9 de septiembre de 1999'
+    assert (vga_text('1'),vga_text('0'),vga_text(''))==('Sí','No','')
+    assert disc_text('2/4')=='2 de 4' and disc_text('')==''
+    set_language('en')
+    try:
+        assert region_text('JUE')=='Japan · USA · Europe' and date_text('19990909')=='September 9, 1999'
+        assert (vga_text('1'),disc_text('1/1'),date_text('00000000'))==('Yes','1 of 1','No date')
+    finally:set_language('es')
+
+
+@pytest.mark.parametrize('language',['es','en'])
+def test_game_info_saved_game_card_sections_values_and_no_scroll(window,language):
+    from openmenu_gdemu_manager.ui.v2.game_info import game_info_dialog
+    game=window.games[0]
+    game.region='JUE';game.disc='1/1';game.vga='1';game.version='V1.005';game.date='19990909'
+    game.internal_name='COVERED DISC';game.media_type='GDI';game.folder=window.root_path/'02';game.folder.mkdir()
+    set_language(language)
+    try:
+        dialog=game_info_dialog(window.cover_host,window.cover_host.store.view(game))
+        scroll=_open_info(dialog)
+        assert list(dialog.sections)==['section_openmenu','section_disc','section_files']
+        assert dialog.name.text()=='Covered'
+        chips=[chip.text() for chip in dialog.chips]
+        assert chips==(['Posición 002','Japón · EE. UU. · Europa'] if language=='es' else ['Position 002','Japan · USA · Europe'])
+        assert _value(dialog,'section_disc','disc_id')=='T1234'
+        assert _value(dialog,'section_disc','internal_name')=='COVERED DISC'
+        assert _value(dialog,'section_disc','vga')==('Sí' if language=='es' else 'Yes')
+        assert _value(dialog,'section_disc','date')==('9 de septiembre de 1999' if language=='es' else 'September 9, 1999')
+        assert _value(dialog,'section_disc','disc')==('1 de 1' if language=='es' else '1 of 1')
+        assert _value(dialog,'section_files','format')=='GDI'
+        assert dialog.sections['section_files'].values['folder_on_sd'].toolTip()==str(game.folder)
+        # Saved name and technical reference only appear when they add information.
+        assert 'saved_name' not in dialog.sections['section_openmenu'].values
+        assert 'technical_reference' not in dialog.sections['section_disc'].values
+        assert dialog.folder_button.isVisible() and dialog.remove_button.isEnabled()
+        assert not scroll.verticalScrollBar().isVisible() and not scroll.horizontalScrollBar().isVisible()
+        bottom=dialog.close_button.mapTo(dialog,dialog.close_button.rect().bottomRight())
+        assert dialog.rect().contains(bottom) and dialog.close_button.text()==catalog.action_label('close')
+        _close_info(dialog)
+    finally:set_language('es')
+
+
+def test_game_info_new_pending_game_shows_source_and_pending_chip(window):
+    from openmenu_gdemu_manager.ui.v2.game_info import game_info_dialog
+    game=GameItem(5,'Crazy Taxi',product_id='MK-51035',region='U',disc='1/1',vga='0',version='V1.004',date='00000000',
+        internal_name='CRAZY TAXI',media_type='CDI',has_placeholder_cover=True,pending_add=True,source_path='D:/Juegos/Crazy Taxi.cdi')
+    window.games.append(game);window.games_by_slot[5]=game
+    dialog=game_info_dialog(window.cover_host,window.cover_host.store.view(game))
+    scroll=_open_info(dialog)
+    assert [chip.text() for chip in dialog.chips]==['Posición 005','EE. UU.','Nuevo · por guardar']
+    assert dialog.chips[-1].property('tone')=='success' and dialog.chips[1].toolTip()=='Código de región: U'
+    assert _value(dialog,'section_disc','date')=='Sin fecha' and _value(dialog,'section_disc','vga')=='No'
+    files=dialog.sections['section_files'].values
+    assert 'folder_on_sd' not in files and files['source_path'].toolTip()=='D:/Juegos/Crazy Taxi.cdi'
+    assert not dialog.folder_button.isVisible()
+    assert not scroll.verticalScrollBar().isVisible()
+    _close_info(dialog)
+
+
+def test_game_info_renamed_slot_game_with_warning_still_fits(window):
+    from openmenu_gdemu_manager.ui.v2.game_info import game_info_dialog
+    game=window.games[1]
+    game.folder=window.root_path/'03';game.media_type='GDI';game.consistency_warnings=['folder_without_menu_entry']
+    view=window.cover_host.store.view(game)
+    game.name='Renamed'
+    dialog=game_info_dialog(window.cover_host,view)
+    scroll=_open_info(dialog)
+    assert 'Nombre · por guardar' in [chip.text() for chip in dialog.chips]
+    assert dialog.chips[1].text()=='Región desconocida'
+    assert _value(dialog,'section_openmenu','saved_name')=='Missing'
+    disc=dialog.sections['section_disc'].values
+    assert disc['technical_reference'].text()=='SLOT003' and disc['disc_id'].text()=='No disponible'
+    assert disc['disc_id'].toolTip()==catalog.tr('not_disc_id')
+    assert disc['vga'].property('tone')=='missing'
+    assert any(item.objectName()=='undo_name' and item.isVisible() for item in dialog.findChildren(type(dialog.close_button)))
+    assert not scroll.verticalScrollBar().isVisible()
+    _close_info(dialog)
+
+
+def test_image_info_uses_the_same_card_without_scroll(window):
+    from openmenu_gdemu_manager.ui.v2.game_info import image_info_dialog
+    store=window.cover_host.store;view=store.view(window.games[0])
+    key=store.add_candidate(view,Candidate('test','Covered (USA)',90,url='https://example.test/c.png',region='US'),Image.new('RGB',(512,510),'blue'))
+    dialog=image_info_dialog(window.cover_host,view,key)
+    scroll=_open_info(dialog)
+    assert list(dialog.sections)==['section_image','section_origin']
+    assert [chip.text() for chip in dialog.chips]==['512 × 510 px','EE. UU.']
+    assert _value(dialog,'section_origin','provider')=='test'
+    assert not scroll.verticalScrollBar().isVisible()
+    _close_info(dialog)
+
+
+def test_info_buttons_open_the_card_from_list_and_cover_window(window,monkeypatch):
+    from openmenu_gdemu_manager.ui.v2 import game_info
+    opened=[]
+    monkeypatch.setattr(game_info.InfoDialog,'exec',lambda self:opened.append((self.windowTitle(),list(self.sections))))
+    window.show_game_info(window.games[0])
+    ws=ProductionWorkspace(window.cover_host,window.games[0],auto_search=False)
+    [button for button in ws.findChildren(QPushButton) if button.objectName()=='info'][0].click()
+    ws.reject()
+    expected=(catalog.action_label('info'),['section_openmenu','section_disc'])
+    assert opened==[expected,expected]

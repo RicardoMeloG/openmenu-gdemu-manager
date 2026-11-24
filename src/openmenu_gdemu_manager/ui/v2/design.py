@@ -85,6 +85,13 @@ def apply_theme(app, value="light"):
     QWidget#WizardHero, QWidget#SecurityCard, QWidget#DiagnosticTile {{ background: {c['paper']}; border: 1px solid {c['line']}; border-radius: {METRICS['radius']}px; }}
     QLabel#ChipWarning {{ background: {c['warning_soft']}; color: {c['warning']}; padding: 8px; border-radius: {METRICS['radius']}px; }}
     QLabel#ChipInfo {{ background: {c['soft']}; color: {c['ink']}; padding: 8px; border-radius: {METRICS['radius']}px; }}
+    QLabel#InfoCover {{ background: {c['soft']}; border: 1px solid {c['line']}; border-radius: {METRICS['radius']}px; }}
+    QLabel#InfoCover[chosen=true] {{ border: 2px dashed {c['success']}; }}
+    QLabel#InfoChip {{ background: {c['soft']}; color: {c['ink']}; border: 1px solid {c['line']}; border-radius: {METRICS['radius']}px; padding: 2px 8px; font-size: {METRICS['font-small']}px; }}
+    QLabel#InfoChip[tone=success] {{ background: {c['success_soft']}; color: {c['success']}; border-color: {c['success']}; }}
+    QLabel#InfoChip[tone=danger] {{ background: {c['danger_soft']}; color: {c['danger']}; border-color: {c['danger']}; }}
+    QFrame#InfoSection {{ border: 1px solid {c['line']}; border-radius: {METRICS['radius']}px; background: {c['paper']}; }}
+    QLabel#InfoValue[tone=missing] {{ color: {c['muted']}; }}
     QLabel#TileTitle {{ color: {c['muted']}; font-size: {METRICS['font-small']}px; }}
     QLabel#BusyTitle {{ font-weight: 600; }}
     QLabel#BusyDetail {{ color: {c['muted']}; }}
