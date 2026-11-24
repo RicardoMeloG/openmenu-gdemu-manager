@@ -559,7 +559,7 @@ class CoverWorkspace(QDialog):
         layout.addWidget(self.title_label)
         layout.addWidget(self.context_label)
         header.addWidget(heading,1)
-        header.addWidget(Button("close",self.reject,icon_only=True,compact=True))
+        # The title bar already closes the window; Escape walks back, then closes.
         root.addWidget(top)
         self.stack = QStackedWidget()
         self.gallery = Gallery(self)

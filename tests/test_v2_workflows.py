@@ -1043,6 +1043,34 @@ def test_choosing_a_large_cover_says_openmenu_stores_256(window,size,resized):
     ws.reject()
 
 
+@pytest.mark.parametrize('how',['escape','title_bar'])
+def test_cover_window_has_no_inner_close_button_and_still_closes(window,how):
+    """The title bar X is the only close control; Escape and the title bar still reject."""
+    from PySide6.QtWidgets import QDialog,QPushButton,QWidget
+    ws=ProductionWorkspace(window.cover_host,window.games[1],auto_search=False);ws.resize(1280,780);ws.show();QTest.qWait(30)
+    close_label=catalog.action_label('close')
+    assert not [b for b in ws.findChildren(QPushButton) if getattr(b,'action',None)=='close' or (not b.text() and b.toolTip()==close_label)]
+    # Header: «Mi colección» on the left and the title reaching the right margin, with no gap.
+    top=ws.findChild(QWidget,'Top');heading=ws.title_label.parentWidget()
+    assert ws.back_button.text()==catalog.tr('collection') and ws.back_button.geometry().right()<heading.geometry().left()
+    assert heading.geometry().right()==top.layout().contentsRect().right()
+    # Tab goes from «Mi colección» straight to the search field.
+    ws.activateWindow();ws.back_button.setFocus();QTest.keyClick(ws.back_button,Qt.Key.Key_Tab)
+    assert QApplication.focusWidget() is ws.gallery.query
+    finished=[];ws.finished.connect(finished.append)
+    if how=='escape':QTest.keyClick(ws.gallery.query,Qt.Key.Key_Escape)
+    else:ws.close()
+    QApplication.processEvents()
+    assert finished==[QDialog.DialogCode.Rejected] and not ws.isVisible()
+
+
+def test_v2_windows_do_not_build_an_icon_only_close_button():
+    import re
+    source=Path(catalog.__file__).parent
+    pattern=re.compile(r"""Button\(\s*['"]close['"][^\n]*icon_only\s*=\s*True""")
+    assert not [path.name for path in source.glob('*.py') if pattern.search(path.read_text(encoding='utf-8'))]
+
+
 def test_chosen_card_says_chosen_on_its_button_and_stands_out(window):
     store=window.cover_host.store;game=window.games[1];view=store.view(game);session=store.session(view)
     keys=[]
