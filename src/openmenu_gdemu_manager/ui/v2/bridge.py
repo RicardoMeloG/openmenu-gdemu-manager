@@ -82,14 +82,6 @@ class CoverHost(QWidget):
         dialog.exec()
         if dialog.clickedButton() is accept:callback()
 
-    def show_save(self,parent=None):
-        try:started=self.window.save_changes_to_sd()
-        except Exception as exc:
-            self.window.show_error(str(exc));return
-        if isinstance(parent,CoverWorkspace):
-            if started:parent.accept()
-            else:parent.refresh()
-
     def show_info(self,game,parent=None,image_key=None):
         real=game.real
         dialog=QDialog(parent or self.window)
@@ -170,7 +162,6 @@ class ProductionWorkspace(CoverWorkspace):
         self.retry_worker=None
         super().__init__(host,host.store.view(real))
         self.setWindowIcon(host.window.windowIcon())
-        self.save.setEnabled(host.window.write_allowed and host.window.has_pending_changes())
         if auto_search:QTimer.singleShot(0,self.search)
 
     def pixmap(self,key):
@@ -281,10 +272,6 @@ class ProductionWorkspace(CoverWorkspace):
         self.gallery.search.setEnabled(True)
         self.gallery.search.setText(catalog.action_label('search'))
         self.message(tr('read_failed',reason=message))
-
-    def refresh(self):
-        super().refresh()
-        self.save.setEnabled(self.owner.window.write_allowed and self.owner.window.has_pending_changes())
 
     def invalidate_requests(self,*args):
         super().invalidate_requests(*args)

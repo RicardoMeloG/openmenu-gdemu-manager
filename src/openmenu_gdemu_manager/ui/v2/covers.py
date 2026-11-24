@@ -572,8 +572,10 @@ class CoverWorkspace(QDialog):
         footer, row = box(False,margins=6,name="Footer")
         self.pending_label = label("",muted=True)
         row.addWidget(self.pending_label,1)
-        self.save = Button("save",lambda:self.owner.show_save(self),compact=True)
-        row.addWidget(self.save)
+        # Done only closes: the choice stays pending and is saved together with
+        # the rest of the collection from Save changes in the main window.
+        self.finish_button = Button("done",self.finish,compact=True)
+        row.addWidget(self.finish_button)
         root.addWidget(footer)
         self.refresh()
         QTimer.singleShot(0,self.gallery.query.setFocus)
@@ -596,7 +598,6 @@ class CoverWorkspace(QDialog):
         self.title_label.setText(self.game.title)
         self.context_label.setText(tr("game_context",slot=f"{self.game.slot:03}" if self.game.slot else tr('pending'),region=self.game.region or tr('unidentified'),tab=tr({'gallery':'gallery','inspect':'inspection','compare':'comparison'}[self.session.tab])))
         self.pending_label.setText(tr('chosen_pending' if self.game.choice else 'renamed_pending' if self.game.title!=self.game.original else 'no_pending_choice'))
-        self.save.setEnabled(self.store.writable and bool(self.store.plan()))
         self.back_button.setText(catalog.action_label('back') if self.session.history else tr('collection'))
         self.gallery.refresh()
         self.owner.refresh_collection()
@@ -689,6 +690,11 @@ class CoverWorkspace(QDialog):
         self.refresh()
         if self.gallery_origin:self.gallery.restore_focus(self.gallery_origin)
         else:self.gallery.query.setFocus()
+
+    def finish(self):
+        """Close like Mi colección, keeping the pending choice; nothing is written."""
+        self.owner.refresh_collection()
+        self.reject()
 
     def back(self):
         if not self.session.back():

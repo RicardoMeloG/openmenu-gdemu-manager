@@ -1125,6 +1125,42 @@ def test_cover_window_has_no_inner_close_button_and_still_closes(window,how):
     assert finished==[QDialog.DialogCode.Rejected] and not ws.isVisible()
 
 
+@pytest.mark.parametrize('language',['es','en'])
+def test_cover_window_done_closes_and_keeps_the_choice_without_saving(window,monkeypatch,language):
+    """«Listo» replaces «Revisar y guardar»: it closes like Mi colección and never writes."""
+    from PySide6.QtGui import QImage,QPainter
+    from PySide6.QtWidgets import QDialog,QPushButton,QStyleOptionViewItem
+    set_language(language)
+    def forbidden(*args,**kwargs):raise AssertionError('The cover window must not save')
+    monkeypatch.setattr(window,'save_changes_to_sd',forbidden)
+    assert not hasattr(window.cover_host,'show_save')
+    store=window.cover_host.store;model=window.games_model;game=window.games[1];view=store.view(game)
+    key=store.add_candidate(view,Candidate('test','Pick',90,local_path='done-pick'),Image.new('RGB',(512,512),(20,40,230)))
+    store.session(view).results.append(key)
+    ws=ProductionWorkspace(window.cover_host,game,auto_search=False);ws.resize(1280,780);ws.show();QTest.qWait(30)
+    done=ws.finish_button
+    assert done.text()=={'es':'Listo','en':'Done'}[language]==catalog.action_label('done')
+    assert not [b for b in ws.findChildren(QPushButton) if getattr(b,'action',None)=='save']
+    # Always available, even before anything is chosen; the footer still fits it.
+    assert done.isEnabled() and not window.has_pending_changes()
+    footer=done.parentWidget()
+    assert footer.rect().contains(done.geometry()) and done.width()>=done.sizeHint().width()
+    ws.choose(key);QTest.qWait(10)
+    assert done.isEnabled() and view.choice==key
+    finished=[];ws.finished.connect(finished.append)
+    QTest.mouseClick(done,Qt.MouseButton.LeftButton);QApplication.processEvents()
+    assert finished==[QDialog.DialogCode.Rejected] and not ws.isVisible()
+    # The choice stays pending for Guardar cambios, and the list shows it.
+    assert view.choice==key and window.has_pending_changes() and not game.selected_image
+    row=model._games.index(game)
+    assert catalog.tr('chosen_cover') in model.data(model.index(row,model.C_STATUS))
+    image=QImage(96,96,QImage.Format.Format_RGB32);image.fill(0xffffff);painter=QPainter(image)
+    option=QStyleOptionViewItem();option.rect=image.rect()
+    window.table.itemDelegate().paint(painter,option,model.index(row,model.C_COVER));painter.end()
+    color=image.pixelColor(48,48)
+    assert color.blue()>200 and color.red()<60 and color.green()<80
+
+
 def test_v2_windows_do_not_build_an_icon_only_close_button():
     import re
     source=Path(catalog.__file__).parent

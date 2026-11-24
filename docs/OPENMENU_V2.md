@@ -90,7 +90,10 @@ Native file pickers remain OS-owned. See [screen coverage and visual review](V2_
    the web do not choose it or write to the SD. Keeping the current image does
    not prepare a replacement. Exact image duplicates are merged; different
    scans/tones remain alternatives under the original deduplication rules.
-6. Review and save validates the intentional choices and confirms the storage
+   The cover window footer offers Listo/Done, which closes the window like
+   Mi colección and keeps the draft; it never saves. The main window's
+   Guardar cambios/Save changes saves every pending change together.
+6. Save changes validates the intentional choices and confirms the storage
    plan before materializing them through the original cover service and
    starting the transactional worker. Cancelling leaves drafts and local cover
    state untouched; Discard/Keep can remove the choice without a hidden save.
