@@ -215,8 +215,8 @@ class MainWindowV2(MainWindow):
         self.configuration_note.setToolTip(legacy_tr('v2.gdemu_config.open_details'))
         self.configuration_note.setProperty('tone','warning' if config and config.status in ('invalid','unreadable','review') else '')
         repolish(self.configuration_note)
-        self.guidance.setText(tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else tr('missing_guidance',count=missing) if missing else tr('all_covered') if self.games else tr('collection_empty') if self.diagnostic and self.write_allowed else tr('destination_unknown'))
-        self.summary.setText(tr('collection_count',count=len(self.games),missing=missing))
+        self.guidance.setText(tr('destination_readonly',reason=self.read_only_reason) if self.diagnostic and not self.write_allowed else catalog.plural('missing_guidance',missing) if missing else tr('all_covered') if self.games else tr('collection_empty') if self.diagnostic and self.write_allowed else tr('destination_unknown'))
+        self.summary.setText(tr('collection_count',games=catalog.plural('games_count',len(self.games)),missing=catalog.plural('missing_count',missing)))
         caption=tr('missing_only',count=missing)
         if self.missing_button.text()!=caption:
             self.missing_button.setText(caption);self.missing_button.setAccessibleName(caption);self.missing_button.updateGeometry()

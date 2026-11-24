@@ -622,7 +622,8 @@ def test_chosen_cover_is_previewed_in_the_collection_until_discarded(window,lang
         ws.choose(key);QTest.qWait(10)
         return ws
     assert catalog.tr('no_cover') in status(new) and not is_blue(cover_cell(new).pixelColor(48,48))
-    assert window.summary.text()==catalog.tr('collection_count',count=3,missing=2)
+    summary={'es':('3 juegos · 2 sin carátula','3 juegos · 1 sin carátula'),'en':('3 games · 2 without covers','3 games · 1 without a cover')}[language]
+    assert window.summary.text()==summary[0]
     ws=choose(new)
     # Choosing refreshes the list behind the cover window: the row shows the
     # choice, framed in the green dashed border of a cover not on the SD yet.
@@ -632,7 +633,7 @@ def test_chosen_cover_is_previewed_in_the_collection_until_discarded(window,lang
     frame=[image.pixelColor(x,y) for x in range(96) for y in (7,8,9,10,11)]
     assert any(max(abs(c.red()-success.red()),abs(c.green()-success.green()),abs(c.blue()-success.blue()))<30 for c in frame)
     # It no longer counts or filters as missing a cover.
-    assert window.summary.text()==catalog.tr('collection_count',count=3,missing=1)
+    assert window.summary.text()==summary[1]
     assert window.missing_button.text()==catalog.tr('missing_only',count=1)
     window.missing_button.setChecked(True);window.toggle_missing()
     assert window.filtered_games==[existing]
@@ -640,13 +641,22 @@ def test_chosen_cover_is_previewed_in_the_collection_until_discarded(window,lang
     ws.discard();QTest.qWait(10)
     assert catalog.tr('no_cover') in status(new) and catalog.tr('chosen_cover') not in status(new)
     assert not is_blue(cover_cell(new).pixelColor(48,48))
-    assert window.summary.text()==catalog.tr('collection_count',count=3,missing=2)
+    assert window.summary.text()==summary[0]
     ws.reject()
     # An existing game says it in one line; discarding all pending changes clears it.
     choose(existing).reject();QApplication.processEvents()
     assert status(existing)==catalog.tr('pending_cover') and is_blue(cover_cell(existing).pixelColor(48,48))
     window.discard_pending_changes()
     assert status(existing)==catalog.tr('no_cover') and not is_blue(cover_cell(existing).pixelColor(48,48))
+
+
+@pytest.mark.parametrize('language',['es','en'])
+def test_collection_counts_use_the_singular_for_one(window,language):
+    set_language(language)
+    window.games=window.games[1:2];window.games_by_slot={3:window.games[0]};window.apply_filters()
+    expected={'es':('1 juego · 1 sin carátula','1 juego sin carátula.'),'en':('1 game · 1 without a cover','1 game without a cover.')}[language]
+    assert window.summary.text()==expected[0]
+    assert window.guidance.text().startswith(expected[1])
 
 
 def test_animations_setting_reads_a_full_windows_bool():
