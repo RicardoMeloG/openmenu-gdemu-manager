@@ -20,6 +20,8 @@ from .design import Button, TextLabel, colors, icon, label
 COVER_SIZE = 76
 WIDTH = 680
 HEIGHT_RANGE = (420, 720)
+# Smallest height on a short screen: header, one section and the footer.
+MIN_HEIGHT = 260
 
 # Dreamcast IP.BIN region letters, plus the two-letter forms used by providers.
 _REGION_LETTERS = (('J', 'region.jpn'), ('U', 'region.usa'), ('E', 'region.eur'))
@@ -215,18 +217,23 @@ class InfoDialog(QDialog):
         self.close_button = close
         self.resize(WIDTH, self.fitting_height())
 
-    def fitting_height(self):
-        """Height showing all content without scrolling, within sane bounds."""
+    def natural_height(self):
+        """Height that shows all content without scrolling, ignoring the screen."""
         margins = self.layout().contentsMargins()
         footer = self.footer.sizeHint().height()
         content = self.scroll.widget().layout().heightForWidth(WIDTH - margins.left() - margins.right() - 4)
         if content < 0:
             content = self.scroll.widget().sizeHint().height()
         height = content + footer + self.layout().spacing() + margins.top() + margins.bottom() + 2
+        return max(HEIGHT_RANGE[0], min(height, HEIGHT_RANGE[1]))
+
+    def fitting_height(self):
+        """Natural height, kept inside the screen; scrolling is only a fallback
+        for screens shorter than the content."""
         screen = (self.parentWidget() or self).screen()
-        available = screen.availableGeometry().height() if screen else 0
-        upper = min(HEIGHT_RANGE[1], available - 60) if available >= 480 else HEIGHT_RANGE[1]
-        return max(HEIGHT_RANGE[0], min(height, upper))
+        available = screen.availableGeometry().height() - 60 if screen else 0
+        height = self.natural_height()
+        return min(height, max(MIN_HEIGHT, available)) if available > 0 else height
 
 
 def _pixmap(store, key, size):

@@ -1241,7 +1241,16 @@ def test_collection_scroll_bar_only_when_rows_overflow_and_actions_stay_whole(wi
 # «Datos del juego»: card with header, sections and interpreted values.
 
 def _open_info(dialog):
+    """Show the card at its natural size, as on a normal desktop screen.
+
+    The offscreen screen is 800x800 physical pixels, so its logical height
+    shrinks with QT_SCALE_FACTOR (533 px at 1.5) and the card is then limited
+    to the screen. Without the screen limit it must fit with no scrolling.
+    """
     from PySide6.QtWidgets import QScrollArea
+    available=dialog.screen().availableGeometry().height()
+    assert dialog.height()<=max(game_info_min_height(),available-60)
+    dialog.resize(dialog.width(),dialog.natural_height())
     dialog.show()
     # Nested layouts settle over several event-loop turns (slower at 2.5x).
     for _ in range(100):
@@ -1249,6 +1258,26 @@ def _open_info(dialog):
         if dialog.findChild(QScrollArea).widget().height()>0 and dialog.close_button.height()>0:break
     QTest.qWait(40)
     return dialog.findChild(QScrollArea)
+
+
+def game_info_min_height():
+    from openmenu_gdemu_manager.ui.v2.game_info import MIN_HEIGHT
+    return MIN_HEIGHT
+
+
+def test_game_info_short_screen_keeps_card_inside_and_scrolls(window,monkeypatch):
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QScreen
+    from openmenu_gdemu_manager.ui.v2.game_info import game_info_dialog,MIN_HEIGHT
+    monkeypatch.setattr(QScreen,'availableGeometry',lambda self:QRect(0,0,800,420))
+    dialog=game_info_dialog(window.cover_host,window.cover_host.store.view(window.games[0]))
+    assert dialog.height()==max(MIN_HEIGHT,360)<dialog.natural_height()
+    dialog.show()
+    for _ in range(10):QTest.qWait(20)
+    assert dialog.scroll.verticalScrollBar().isVisible()
+    bottom=dialog.close_button.mapTo(dialog,dialog.close_button.rect().bottomRight())
+    assert dialog.rect().contains(bottom)
+    _close_info(dialog)
 
 
 def _value(dialog,section,key):
