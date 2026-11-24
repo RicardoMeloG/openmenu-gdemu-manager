@@ -72,8 +72,16 @@ class CoverStore:
     @property
     def readonly(self):return not self.window.write_allowed
 
+    def identity(self, real):
+        return str(Path(self.window.root_path).resolve())+'|'+str(real.slot)+'|'+str(real.source_path or real.folder or '')
+
+    def pending_choice(self, real):
+        """Cover chosen for this game and not saved yet; never creates a view."""
+        game=self.views.get(self.identity(real))
+        return game.choice if game is not None and game.real is real else None
+
     def view(self, real):
-        identity=str(Path(self.window.root_path).resolve())+'|'+str(real.slot)+'|'+str(real.source_path or real.folder or '')
+        identity=self.identity(real)
         game=self.views.get(identity)
         created=game is None or game.real is not real
         if created:

@@ -598,6 +598,57 @@ def test_new_bulk_proposal_replaces_the_cached_thumbnail(window):
     assert first.blue()>200 and second.red()>200 and second.blue()<60
 
 
+@pytest.mark.parametrize('language',['es','en'])
+def test_chosen_cover_is_previewed_in_the_collection_until_discarded(window,language):
+    from PySide6.QtGui import QColor,QImage,QPainter
+    from PySide6.QtWidgets import QStyleOptionViewItem
+    from openmenu_gdemu_manager.ui.v2 import design
+    set_language(language)
+    store=window.cover_host.store;model=window.games_model
+    new,existing=window.games[1],window.games[2]
+    new.pending_add=True;window.apply_filters()
+    def row(game):return model._games.index(game)
+    def status(game):return model.data(model.index(row(game),model.C_STATUS))
+    def cover_cell(game):
+        image=QImage(96,96,QImage.Format.Format_RGB32);image.fill(0xffffff);painter=QPainter(image)
+        option=QStyleOptionViewItem();option.rect=image.rect()
+        window.table.itemDelegate().paint(painter,option,model.index(row(game),model.C_COVER));painter.end()
+        return image
+    def is_blue(color):return color.blue()>200 and color.red()<60 and color.green()<80
+    def choose(game):
+        view=store.view(game);key=store.add_candidate(view,Candidate('test','Pick',90,local_path='pick-'+game.name),Image.new('RGB',(512,512),(20,40,230)))
+        store.session(view).results.append(key)
+        ws=ProductionWorkspace(window.cover_host,game,auto_search=False);ws.show();QTest.qWait(10)
+        ws.choose(key);QTest.qWait(10)
+        return ws
+    assert catalog.tr('no_cover') in status(new) and not is_blue(cover_cell(new).pixelColor(48,48))
+    assert window.summary.text()==catalog.tr('collection_count',count=3,missing=2)
+    ws=choose(new)
+    # Choosing refreshes the list behind the cover window: the row shows the
+    # choice, framed in the green dashed border of a cover not on the SD yet.
+    assert status(new).splitlines()==[catalog.tr('chosen_cover'),catalog.tr('new_pending')]
+    image=cover_cell(new);assert is_blue(image.pixelColor(48,48))
+    success=QColor(design.colors()['success'])
+    frame=[image.pixelColor(x,y) for x in range(96) for y in (7,8,9,10,11)]
+    assert any(max(abs(c.red()-success.red()),abs(c.green()-success.green()),abs(c.blue()-success.blue()))<30 for c in frame)
+    # It no longer counts or filters as missing a cover.
+    assert window.summary.text()==catalog.tr('collection_count',count=3,missing=1)
+    assert window.missing_button.text()==catalog.tr('missing_only',count=1)
+    window.missing_button.setChecked(True);window.toggle_missing()
+    assert window.filtered_games==[existing]
+    window.missing_button.setChecked(False);window.toggle_missing()
+    ws.discard();QTest.qWait(10)
+    assert catalog.tr('no_cover') in status(new) and catalog.tr('chosen_cover') not in status(new)
+    assert not is_blue(cover_cell(new).pixelColor(48,48))
+    assert window.summary.text()==catalog.tr('collection_count',count=3,missing=2)
+    ws.reject()
+    # An existing game says it in one line; discarding all pending changes clears it.
+    choose(existing).reject();QApplication.processEvents()
+    assert status(existing)==catalog.tr('pending_cover') and is_blue(cover_cell(existing).pixelColor(48,48))
+    window.discard_pending_changes()
+    assert status(existing)==catalog.tr('no_cover') and not is_blue(cover_cell(existing).pixelColor(48,48))
+
+
 def test_animations_setting_reads_a_full_windows_bool():
     from openmenu_gdemu_manager.ui.v2 import main_window as v2
     assert isinstance(v2._animations_enabled(),bool)

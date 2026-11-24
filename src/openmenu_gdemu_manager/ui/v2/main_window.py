@@ -228,8 +228,10 @@ class MainWindowV2(MainWindow):
             button.setIcon(design.icon('plus' if button is self.add_game_button else 'device-floppy',design.colors()['paper'] if primary and button.isEnabled() else design.colors()['ink']))
         self.table.horizontalHeader().viewport().update()
 
-    @staticmethod
-    def is_missing(game):return game.has_placeholder_cover or not game.current_cover
+    def is_missing(self,game):
+        # A cover chosen but not saved yet is shown in the row, so the count,
+        # the filter and bulk preselection treat that game as covered.
+        return (game.has_placeholder_cover or not game.current_cover) and not (self.cover_host and self.cover_host.store.pending_choice(game))
 
     def apply_filters(self):
         if not self._v2_ready:return super().apply_filters()
