@@ -127,6 +127,24 @@ def tr(key: str, **kwargs: Any) -> str:
     return registry().translate(key, **kwargs)
 
 
+def tr_count(key: str, count: int, **kwargs: Any) -> str:
+    """Text for a count: ``key + '_one'`` is the singular form.
+
+    A language without the singular key uses its own plural form before
+    falling back to English, so an external language package never mixes
+    languages in one sentence.
+    """
+    reg = registry()
+    lang = reg.normalize(_ACTIVE_LANGUAGE)
+    strings = reg.languages[lang].strings
+    if key not in strings and f"{key}_one" not in strings:
+        lang = "en"
+        strings = reg.languages[lang].strings
+    if count == 1 and f"{key}_one" in strings:
+        key = f"{key}_one"
+    return reg.translate(key, lang, count=count, **kwargs)
+
+
 def translate_status(status: str) -> str:
     return tr(f"status.{status}") if status else tr("status.unknown")
 

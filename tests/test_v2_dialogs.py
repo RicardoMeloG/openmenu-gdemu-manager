@@ -338,3 +338,126 @@ def test_about_names_the_author_and_where_to_report(app, language, labels):
     body = max(dialog.findChildren(QLabel), key=lambda label: len(label.text()))
     assert body.height() >= body.heightForWidth(body.width())
     _dispose(app, dialog)
+
+
+CONFIRM_TILES = ('covers', 'additions', 'deletions', 'slot_moves', 'product_updates', 'rebuild')
+
+
+def _confirm(app, *counts, **kwargs):
+    covers, additions, deletions, slot_moves, product_updates = counts
+    return _show(app, ConfirmApplyDialog(Path('E:/'), covers, additions, deletions,
+                                         slot_moves=slot_moves, product_updates=product_updates, **kwargs))
+
+
+def _tile_values(dialog):
+    return {key: dialog.tiles[key].value_label.text() for key in CONFIRM_TILES}
+
+
+def _labels_fit(dialog):
+    # Values and labels must be readable at 1x and 2.5x, never clipped.
+    for key, tile in dialog.tiles.items():
+        for label in (tile.title_label, tile.value_label):
+            assert label.isVisible(), key
+            assert tile.rect().contains(label.geometry()), (key, label.text())
+            if label.wordWrap():
+                assert label.height() >= label.heightForWidth(label.width()), (key, label.text())
+            else:
+                assert label.width() >= label.sizeHint().width(), (key, label.text())
+
+
+@pytest.mark.parametrize('language', ['es', 'en'])
+def test_confirm_apply_counts_every_tile_and_dims_zeros(app, language):
+    set_language(language)
+    dialog = _confirm(app, 2, 2, 0, 0, 0)
+    values = _tile_values(dialog)
+    rebuilt = {'es': 'Se reconstruye', 'en': 'Rebuilt'}[language]
+    # Ricardo's option A keeps every tile, zeros included, plus the menu rebuild.
+    assert values == {'covers': '2', 'additions': '2', 'deletions': '0', 'slot_moves': '0',
+                      'product_updates': '0', 'rebuild': rebuilt}
+    for key in ('deletions', 'slot_moves', 'product_updates'):
+        assert dialog.tiles[key].value_label.property('zero') is True, key
+        assert dialog.tiles[key].property('plate') == 'zero', key
+    for key in ('covers', 'additions'):
+        assert dialog.tiles[key].value_label.property('zero') is False, key
+        assert dialog.tiles[key].property('plate') != 'zero', key
+    assert dialog.tiles['deletions'].title_label.text() == {'es': 'A la papelera', 'en': 'To internal trash'}[language]
+    _labels_fit(dialog)
+    _dispose(app, dialog)
+
+
+@pytest.mark.parametrize('language,singular,plural', [
+    ('es', ('compactará 1 carpeta para', 'corregirá 1 Product ID', 'guardará 1 carátula,', 'copiará 1 juego,', 'moverá 1 juego a la papelera'),
+           ('compactará 4 carpetas', 'corregirá 5 Product ID', 'guardará 3 carátulas', 'copiará 2 juegos', 'moverá 6 juegos')),
+    ('en', ('compact 1 folder to', 'fix 1 Product ID value,', 'save 1 cover,', 'copy 1 game,', 'move 1 game to'),
+           ('compact 4 folders', 'fix 5 Product ID values', 'save 3 covers', 'copy 2 games', 'move 6 games')),
+])
+def test_confirm_apply_uses_real_plurals(app, language, singular, plural):
+    set_language(language)
+    for counts, expected in (((1, 1, 1, 1, 1), singular), ((3, 2, 6, 4, 5), plural)):
+        dialog = _confirm(app, *counts)
+        text = '\n'.join(label.text() for label in dialog.findChildren(QLabel))
+        assert '(s)' not in text
+        for fragment in expected:
+            assert fragment in dialog.message_label.text(), (counts, fragment)
+        _labels_fit(dialog)
+        _dispose(app, dialog)
+
+
+def test_confirm_apply_cancel_stays_the_default(app):
+    for counts in ((1, 0, 0, 0, 0), (3, 2, 1, 4, 5), (0, 0, 7, 12, 0)):
+        dialog = _confirm(app, *counts)
+        assert dialog.cancel_button.isDefault() and not dialog.apply_button.isDefault()
+        assert not dialog.apply_button.autoDefault()
+        QTest.keyClick(dialog, Qt.Key.Key_Return)
+        app.processEvents()
+        assert dialog.result() == QDialog.DialogCode.Rejected and not dialog.isVisible()
+        dialog.deleteLater()
+        app.processEvents()
+
+
+def test_confirm_apply_does_not_count_new_game_covers_twice(app):
+    set_language('es')
+    # Two new games, each with its chosen cover: two games, not four changes.
+    dialog = _confirm(app, 2, 2, 0, 0, 0, new_game_covers=2)
+    assert _tile_values(dialog)['covers'] == '0' and dialog.tiles['covers'].value_label.property('zero') is True
+    assert _tile_values(dialog)['additions'] == '2'
+    assert dialog.tiles['additions'].detail_label.text() == 'incluye 2 carátulas'
+    assert 'carátula' not in dialog.message_label.text() and 'copiará 2 juegos' in dialog.message_label.text()
+    _labels_fit(dialog)
+    _capture(dialog, 'review-new-game-covers')
+    _dispose(app, dialog)
+    # One existing game with a new cover plus one new game with its cover.
+    dialog = _confirm(app, 2, 1, 0, 0, 0, new_game_covers=1)
+    assert _tile_values(dialog)['covers'] == '1' and _tile_values(dialog)['additions'] == '1'
+    assert dialog.tiles['additions'].detail_label.text() == 'incluye 1 carátula'
+    assert 'guardará 1 carátula,' in dialog.message_label.text()
+    _dispose(app, dialog)
+    # Without new-game covers there is no extra line.
+    dialog = _confirm(app, 2, 2, 0, 0, 0)
+    assert not hasattr(dialog.tiles['additions'], 'detail_label')
+    _dispose(app, dialog)
+
+
+def test_confirm_apply_safety_line_and_large_operation_warning(app):
+    dialog = _confirm(app, 1, 1, 0, 0, 0)
+    assert dialog.note_label.objectName() == 'ApplySafetyText'
+    assert not dialog.findChildren(QLabel, 'ChipInfo')
+    _dispose(app, dialog)
+    dialog = _confirm(app, 0, 0, 7, 12, 0)
+    assert dialog.note_label.objectName() == 'ChipWarning'
+    _dispose(app, dialog)
+
+
+def test_tr_count_falls_back_to_the_language_plural(monkeypatch):
+    from dataclasses import replace
+    from openmenu_gdemu_manager.i18n import registry, tr_count
+    reg = registry()
+    package = replace(reg.languages['en'], code='xx', strings={'dialog.confirm_apply.action_add': 'xx {count}'})
+    monkeypatch.setitem(reg.languages, 'xx', package)
+    previous = active_language()
+    set_language('xx')
+    try:
+        assert tr_count('dialog.confirm_apply.action_add', 1) == 'xx 1'
+        assert tr_count('dialog.confirm_apply.action_covers', 1) == 'will save 1 cover'
+    finally:
+        set_language(previous)
